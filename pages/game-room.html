@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | ห้องเกม</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="game-room" data-base=".">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who"><span id="currentUser">ผู้ใช้</span><a href="games.html" class="hlink">เกม</a><a href="app.html" class="hlink">แอป</a><button id="logoutBtn" class="out" type="button">ออกจากระบบ</button></div>
+  </header>
+  <main class="shell game-room-shell">
+    <section class="panel game-room-panel">
+      <p class="eyebrow">FREE PLAY ROOM</p>
+      <h1 id="gameRoomTitle">ห้องเกม</h1>
+      <p id="gameRoomStatus" class="trade-intro" aria-live="polite">กำลังโหลดห้อง</p>
+      <div class="room-code-row"><span>รหัสห้อง</span><strong id="gameRoomCode" class="room-code">------</strong><button id="copyGameCode" class="mini-btn" type="button">คัดลอกรหัส</button></div>
+      <input id="gameRoomShare" type="hidden">
+      <div id="gameRoomPeople" class="room-people"></div>
+      <section id="gameLobby">
+        <section id="textChallengePanel" class="text-challenge-panel" hidden>
+          <h2>ข้อความท้าทาย</h2>
+          <p>ส่งข้อความของคุณก่อนเริ่มเกม เมื่อจบเกมผู้ชนะจะเห็นข้อความจากผู้เล่นทุกคน</p>
+          <form id="textChallengeForm" class="text-challenge-form">
+            <label for="textChallengeInput">ข้อความของคุณ</label>
+            <textarea id="textChallengeInput" rows="4" placeholder="พิมพ์ข้อความที่ต้องการส่งให้ผู้ชนะ" required></textarea>
+            <button class="mini-btn" type="submit">ส่งข้อความ</button>
+          </form>
+          <div id="textChallengeStatus" class="text-challenge-status" aria-live="polite"></div>
+          <p class="trade-note">ห้ามใส่ลิงก์ ข้อมูลส่วนตัว หรือข้อมูลรับเงิน ข้อความจะแสดงให้ผู้ชนะหลังเกมจบเท่านั้น</p>
+        </section>
+        <form id="gameInviteForm" class="room-invite-form">
+          <div class="field"><label for="gameInviteFriend">เชิญเพื่อน</label><select id="gameInviteFriend"></select></div>
+          <button id="sendGameInvite" class="btn small-btn" type="submit">เชิญเข้าห้อง</button>
+        </form>
+        <button id="startGameButton" class="btn" type="button" hidden>เริ่มเกม</button>
+      </section>
+      <p id="gameRoomMessage" class="msg" aria-live="polite"></p>
+    </section>
+    <section id="gameBoardWrap" class="panel game-room-panel game-board-wrap" hidden></section>
+    <section id="winnerMessages" class="panel game-room-panel winner-messages" hidden aria-live="polite"></section>
+  </main>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/games.js"></script>
+</body>
+</html>

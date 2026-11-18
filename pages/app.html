@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | แอป</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="app" data-base=".">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <button id="friendToggle" class="mini-toggle" type="button">☰ ดูเพื่อน</button>
+      <button id="addFriendBtn" class="mini-btn" type="button">+ เพื่อน</button>
+      <a href="trade.html" class="hlink">เทรด</a>
+      <a href="games.html#join" class="game-join-link">จอยห้อง</a>
+      <a href="user/profile.html" class="hlink">โปรไฟล์</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <aside id="friendDrawer" class="friends-drawer" aria-label="เพื่อนของฉัน">
+    <div class="drawer-header">
+      <h2>เพื่อนของฉัน</h2>
+      <button id="closeDrawer" class="drawer-close" type="button" aria-label="ปิด">✕</button>
+    </div>
+    <div id="friendList" class="friend-list"></div>
+    <div class="drawer-actions">
+      <a href="friends/add.html" class="btn btn-ghost small-btn">เพิ่มเพื่อน</a>
+      <a href="friends.html" class="btn btn-outline 
+      small-btn">ดูเพื่อน</a>
+    </div>
+  </aside>
+
+  <main class="games-shell">
+    <section class="games-heading">
+      <p class="eyebrow">FLOWLOCK PLAY</p>
+      <h1>เลือกเกม แล้วชวนเพื่อนมาเล่น</h1>
+      <p>สร้างห้องเล่นปกติ หรือเข้าห้องด้วยรหัส 6 หลัก</p>
+    </section>
+
+    <section class="game-grid" aria-label="เกมทั้งหมด">
+      <article class="game-tile">
+        <div class="game-art snakes-art" aria-hidden="true"><span>🐍</span><span>🪜</span><span>🎲</span></div>
+        <div class="game-copy"><p class="eyebrow">4 PLAYERS</p><h2>บันไดงู</h2><p>ทอยเต๋า เดินทางถึงช่อง 100 ก่อนใคร</p></div>
+        <button class="btn game-open" type="button" data-game="snakes">เลือกโหมด</button>
+      </article>
+      <article class="game-tile">
+        <div class="game-art checkers-art" aria-hidden="true"><span>⚫</span><span>⚪</span><span>♟</span></div>
+        <div class="game-copy"><p class="eyebrow">2 PLAYERS</p><h2>หมากฮอส</h2><p>เดินทแยง กินหมากอีกฝ่ายให้หมด</p></div>
+        <button class="btn game-open" type="button" data-game="checkers">เลือกโหมด</button>
+      </article>
+      <article class="game-tile">
+        <div class="game-art property-art" aria-hidden="true"><span>🏠</span><span>🎲</span><span>🪙</span></div>
+        <div class="game-copy"><p class="eyebrow">4 PLAYERS</p><h2>เกมเศรษฐี</h2><p>ทอยเต๋า ซื้อที่ดิน และสะสมทรัพย์สิน</p></div>
+        <button class="btn game-open" type="button" data-game="property">เลือกโหมด</button>
+      </article>
+    </section>
+
+    <dialog id="gameModeDialog" class="game-dialog">
+      <form method="dialog"><button class="drawer-close dialog-close" aria-label="ปิด">✕</button></form>
+      <p class="eyebrow">CHOOSE MODE</p>
+      <h2 id="selectedGameName">เลือกเกม</h2>
+      <div class="mode-options">
+        <button id="normalModeButton" class="mode-option" type="button">
+          <strong>เล่นปกติ</strong><span>สร้างห้องฟรี แล้วเชิญเพื่อนเข้าร่วม</span>
+        </button>
+        <button id="textModeButton" class="mode-option" type="button">
+          <strong>ข้อความท้าทาย</strong><span>ทุกคนส่งข้อความก่อนเริ่ม ผู้ชนะเห็นข้อความทั้งหมด</span>
+        </button>
+        <button class="mode-option mode-disabled" type="button" disabled>
+          <strong>เดิมพันเงินจริง</strong><span>ปิดใช้งาน</span>
+        </button>
+      </div>
+      <p class="trade-note">เกมไม่มีการเดิมพันหรือรางวัลเป็นเงินจริง โหมดข้อความรับเฉพาะข้อความ ไม่รับ URL หรือลิงก์รับเงิน</p>
+    </dialog>
+  </main>
+
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/games.js"></script>
+</body>
+</html>

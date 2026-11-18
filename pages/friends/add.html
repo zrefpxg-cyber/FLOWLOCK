@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | เพิ่มเพื่อน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body data-page="friends-add" data-base="..">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <a href="../app.html" class="hlink">แอป</a>
+      <a href="../friends.html" class="hlink">เพื่อน</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="panel profile-panel friend-form">
+      <div class="profile-head">
+        <div class="avatar">+</div>
+        <div>
+          <p class="eyebrow">ADD FRIEND</p>
+          <h1>เพิ่มเพื่อน</h1>
+        </div>
+      </div>
+
+      <form id="addFriendForm" novalidate>
+        <div class="field">
+          <label for="friendInput">UID หรือชื่อผู้ใช้</label>
+          <div class="inp">
+            <input id="friendInput" name="friendInput" type="text" placeholder="เช่น FLOW-ABCD1234 หรือ user123" autocomplete="off">
+          </div>
+        </div>
+
+        <div id="friendMessage" class="msg" role="alert"></div>
+        <button type="submit" class="btn">เพิ่มเพื่อน</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="../../assets/js/auth.js"></script>
+</body>
+</html>

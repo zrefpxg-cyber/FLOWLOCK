@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | โปรไฟล์ผู้ใช้</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../../assets/css/styles.css">
+</head>
+<body data-page="profile" data-base="..">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <a href="../app.html" class="hlink">กลับสู่แอป</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <main class="shell profile-shell">
+    <section class="panel profile-panel">
+      <div class="profile-head">
+        <div class="avatar">U</div>
+        <div>
+          <p class="eyebrow">PROFILE</p>
+          <h1 id="profileUserName">ผู้ใช้</h1>
+        </div>
+      </div>
+
+      <div class="profile-grid">
+        <div class="info-block">
+          <span>ชื่อผู้ใช้</span>
+          <strong id="profileUsername">ผู้ใช้</strong>
+        </div>
+        <div class="info-block">
+          <span>สถานะบัญชี</span>
+          <strong>ออนไลน์</strong>
+        </div>
+        <div class="info-block">
+          <span>โหมดความปลอดภัย</span>
+          <strong>Secure Session</strong>
+        </div>
+      </div>
+
+      <div class="uid-row">
+        <div id="profileUid" class="uid-box">-</div>
+        <button id="copyUidBtn" class="copy-btn" type="button">คัดลอก UID</button>
+      </div>
+
+      <div class="profile-actions">
+        <a href="../app.html" class="btn btn-ghost">กลับหน้าหลัก</a>
+        <button id="logoutSecondary" class="btn btn-outline" type="button">ออกจากระบบ</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../../assets/js/auth.js"></script>
+</body>
+</html>

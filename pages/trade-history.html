@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | ประวัติการเทรด</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="trade-history" data-base=".">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <a href="trade.html" class="hlink">ห้องเทรด</a>
+      <a href="app.html" class="hlink">แอป</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+  <main class="shell trade-shell">
+    <section class="panel trade-panel">
+      <p class="eyebrow">TRADE LOG</p>
+      <h1>ประวัติการเทรด</h1>
+      <p class="trade-intro">รายการที่คุณส่งและได้รับ</p>
+      <div id="tradeHistory" class="trade-history-list" aria-live="polite"></div>
+    </section>
+  </main>
+  <script src="../assets/js/auth.js"></script>
+</body>
+</html>

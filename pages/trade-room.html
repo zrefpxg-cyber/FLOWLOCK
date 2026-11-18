@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | ห้องเทรด</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="trade-room" data-base=".">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <a href="trade-history.html" class="hlink">ประวัติ</a>
+      <a href="trade.html" class="hlink">ห้องเทรด</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <main class="shell trade-shell">
+    <section class="panel trade-panel">
+      <p class="eyebrow">PRIVATE ROOM · 2 PEOPLE</p>
+      <h1>ห้องแลกเปลี่ยน</h1>
+      <p id="tradeRoomState" class="trade-intro" aria-live="polite">กำลังโหลดห้อง</p>
+      <div id="tradeRoomMembers" class="trade-members"></div>
+      <button id="tradeReady" class="btn trade-ready" type="button">ตกลง พร้อมเทรด</button>
+      <p id="tradeRoomMessage" class="msg ok" aria-live="polite"></p>
+
+      <section id="roomTradeActions" hidden>
+        <h2>เลือกบทบาท</h2>
+        <div class="trade-choices">
+          <button class="trade-choice" type="button" data-room-role="want" aria-pressed="false">
+            <strong>ผู้รับ</strong><span>ระบุรายการที่ต้องการรับ</span>
+          </button>
+          <button class="trade-choice" type="button" data-room-role="offer" aria-pressed="false">
+            <strong>ผู้ให้</strong><span>ระบุรายการที่เสนอ</span>
+          </button>
+        </div>
+        <form id="roomTradeForm" class="trade-form" hidden>
+          <h2 id="roomTradeTitle">รายการ</h2>
+          <input id="roomTradeRole" type="hidden" value="">
+          <div class="field">
+            <label for="roomTradeCategory">หมวดหมู่</label>
+            <select id="roomTradeCategory" required>
+              <option value="ไฟล์ดิจิทัล">ไฟล์ดิจิทัล</option>
+              <option value="งานออกแบบ">งานออกแบบ</option>
+              <option value="ไอเทมเกมที่โอนได้">ไอเทมเกมที่โอนได้</option>
+              <option value="อื่น ๆ">อื่น ๆ</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="roomTradeDetails">รายละเอียดรายการ</label>
+            <textarea id="roomTradeDetails" maxlength="500" required placeholder="อธิบายรายการที่ต้องการแลกเปลี่ยน"></textarea>
+          </div>
+          <p id="roomTradeMessage" class="msg" aria-live="polite"></p>
+          <button class="btn" type="submit">เพิ่มรายการในห้อง</button>
+        </form>
+      </section>
+    </section>
+
+    <section class="panel trade-panel trade-room-activity">
+      <h2>รายการในห้อง</h2>
+      <div id="roomTradeHistory" class="trade-requests"></div>
+      <p class="trade-note">รายการจะแสดงให้สมาชิกทั้งสองคนเห็น และต้องกดยืนยันแยกกันจึงถือว่ายืนยันครบ</p>
+    </section>
+  </main>
+  <script src="../assets/js/auth.js"></script>
+</body>
+</html>

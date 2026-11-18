@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | เทรด</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="trade" data-base=".">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <a href="trade-history.html" class="trade-history-link">ประวัติ</a>
+      <a href="app.html" class="hlink">แอป</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <main class="shell trade-shell">
+    <section class="panel trade-panel">
+      <p class="eyebrow">FLOWLOCK EXCHANGE</p>
+      <div class="trade-title-row">
+        <div>
+          <h1>ห้องเทรด</h1>
+          <p class="trade-intro">เชิญเพื่อนเข้าห้องก่อนเริ่มแลกเปลี่ยน</p>
+        </div>
+        <a href="trade-history.html" class="trade-history-link">ประวัติการเทรด</a>
+      </div>
+
+      <div class="trade-invite-row">
+        <div class="field">
+          <label for="tradeFriend">เชิญเพื่อน</label>
+          <select id="tradeFriend"></select>
+        </div>
+        <button id="createTradeRoom" class="btn small-btn" type="button">+ สร้างห้องและเชิญ</button>
+      </div>
+      <p id="tradeRoomMessage" class="msg" aria-live="polite"></p>
+      <h2>ห้องของฉัน</h2>
+      <div id="tradeRooms" class="trade-requests"></div>
+    </section>
+
+    <section class="trade-note trade-safety-note">
+      รายการแลกเปลี่ยนใช้รายละเอียดทั่วไปเท่านั้น ห้ามใส่รหัสผ่าน, OTP, คุกกี้ หรือลิงก์รับเงิน
+      <br>ข้อมูลเดโมนี้บันทึกในเบราว์เซอร์เครื่องนี้ และยังไม่ซิงก์กับอุปกรณ์อื่น
+    </section>
+  </main>
+
+  <script src="../assets/js/auth.js"></script>
+</body>
+</html>

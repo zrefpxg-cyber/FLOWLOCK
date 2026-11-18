@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FLOWLOCK | เพื่อน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Prompt:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body data-page="friends-list" data-base=".">
+  <header class="top">
+    <b>FLOW<span>LOCK</span></b>
+    <div class="who">
+      <span id="currentUser">ผู้ใช้</span>
+      <a href="app.html" class="hlink">แอป</a>
+      <a href="user/profile.html" class="hlink">โปรไฟล์</a>
+      <button id="logoutBtn" class="out" type="button">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="panel profile-panel">
+      <div class="profile-head">
+        <div class="avatar">F</div>
+        <div>
+          <p class="eyebrow">FRIENDS</p>
+          <h1>รายชื่อเพื่อน</h1>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <h2>คำขอเพื่อน</h2>
+        <a href="friends/add.html" class="btn btn-ghost small-btn">เพิ่มเพื่อน</a>
+      </div>
+
+      <div id="pendingRequests" class="friends-container"></div>
+
+      <div class="list-head" style="margin-top: 28px;">
+        <h2>เพื่อนของฉัน</h2>
+      </div>
+
+      <div id="friendsList" class="friends-container"></div>
+    </section>
+  </main>
+
+  <div id="friendModal" class="friend-modal hidden" aria-hidden="true">
+    <div class="friend-modal-card">
+      <button id="closeFriendModal" class="drawer-close" type="button" aria-label="ปิด">✕</button>
+      <div class="avatar large-avatar">U</div>
+      <h3 id="friendProfileName">ชื่อเพื่อน</h3>
+      <div class="uid-row modal-uid-row">
+        <div id="friendProfileUid" class="uid-box">-</div>
+        <button id="copyFriendUidBtn" class="copy-btn" type="button">คัดลอก UID</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/auth.js"></script>
+</body>
+</html>
