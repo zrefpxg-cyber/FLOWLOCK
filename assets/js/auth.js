@@ -4,6 +4,13 @@ const KEY_FRIENDS = 'flowlock_friends';
 const KEY_REQUESTS = 'flowlock_friend_requests';
 const KEY_TRADES = 'flowlock_trades';
 const KEY_TRADE_ROOMS = 'flowlock_trade_rooms';
+const AVATAR_BUCKET = 'flowlock-avatars';
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+const AVATAR_FILE_EXTENSIONS = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp'
+};
 
 function resolvePagePath(page) {
   const base = document.body?.dataset.base || '.';
@@ -442,24 +449,49 @@ function setupLoginPage() {
       return;
     }
 
-    const users = getUsers();
-    const key = username.toLowerCase();
-    const record = users[key];
-    const hashed = await hashValue(password);
+    try {
+      const client = getSupabaseClient();
+      const email = await getSupabaseAuthEmail(username);
+      let { data, error } = await client.auth.signInWithPassword({ email, password });
 
-    if (!record || record.h !== hashed) {
-      showMessage(message, 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
-      return;
+      if (error) {
+        const legacyUser = getUserByUsername(username);
+        const legacyPasswordMatches = legacyUser && legacyUser.h === await hashValue(password);
+        if (!legacyPasswordMatches) {
+          showMessage(message, 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+          return;
+        }
+
+        const migration = await client.auth.signUp({
+          email,
+          password,
+          options: { data: { username: legacyUser.name } }
+        });
+
+        if (!migration.error) {
+          if (!migration.data.session) {
+            showMessage(message, 'ย้ายบัญชีแล้ว แต่ต้องปิดการยืนยันอีเมลใน Supabase ก่อนจึงจะเข้าสู่ระบบได้');
+            return;
+          }
+          data = migration.data;
+        } else {
+          const duplicateAccount = /already registered|already exists|duplicate key/i.test(migration.error.message);
+          if (!duplicateAccount) throw migration.error;
+          const retry = await client.auth.signInWithPassword({ email, password });
+          if (retry.error) throw retry.error;
+          data = retry.data;
+        }
+      }
+
+      if (!data.user) {
+        throw new Error('ระบบยืนยันตัวตนไม่ส่งข้อมูลบัญชีกลับมา');
+      }
+      const profile = await getSupabaseProfile(client, data.user.id);
+      cacheSupabaseProfile(profile);
+      window.location.href = resolvePagePath('app.html');
+    } catch (error) {
+      showMessage(message, error.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่');
     }
-
-    if (!record.uid) {
-      record.uid = generateUniqueUid(users);
-      users[key] = record;
-      saveUsers(users);
-    }
-
-    setSession(record.name);
-    window.location.href = resolvePagePath('app.html');
   });
 }
 
@@ -490,33 +522,59 @@ function setupRegisterPage() {
       return;
     }
 
+    if (username.length > 32) {
+      showMessage(message, 'ชื่อผู้ใช้ต้องไม่เกิน 32 ตัวอักษร');
+      return;
+    }
+
     if (password.length < 6) {
       showMessage(message, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
       return;
     }
 
-    const users = getUsers();
-    const key = username.toLowerCase();
+    try {
+      const client = getSupabaseClient();
+      const { data, error } = await client.auth.signUp({
+        email: await getSupabaseAuthEmail(username),
+        password,
+        options: { data: { username } }
+      });
 
-    if (users[key]) {
-      showMessage(message, 'ชื่อผู้ใช้นี้ถูกใช้แล้ว ลองชื่ออื่น');
-      return;
+      if (error) {
+        if (/already registered|already exists|duplicate key/i.test(error.message)) {
+          showMessage(message, 'ชื่อผู้ใช้นี้ถูกใช้แล้ว ลองชื่ออื่น');
+          return;
+        }
+        throw error;
+      }
+
+      if (!data.session || !data.user) {
+        throw new Error('สมัครบัญชีแล้วแต่ยังไม่ได้เข้าสู่ระบบ กรุณาปิดการยืนยันอีเมลใน Supabase');
+      }
+      await getSupabaseProfile(client, data.user.id);
+      const { error: signOutError } = await client.auth.signOut();
+      if (signOutError) throw signOutError;
+
+      showMessage(message, 'สมัครสำเร็จ กำลังพาไปหน้าเข้าสู่ระบบ…', true);
+      setTimeout(() => {
+        window.location.href = resolvePagePath('login.html');
+      }, 900);
+    } catch (error) {
+      showMessage(message, error.message || 'สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่');
     }
-
-    const uid = generateUniqueUid(users);
-    users[key] = { name: username, uid, h: await hashValue(password) };
-    saveUsers(users);
-
-    showMessage(message, 'สมัครสำเร็จ กำลังพาไปหน้าเข้าสู่ระบบ…', true);
-    setTimeout(() => {
-      window.location.href = resolvePagePath('login.html');
-    }, 900);
   });
 }
 
 function attachLogoutButton(button, redirectTo = 'login.html') {
   if (!button) return;
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
+    try {
+      const client = getSupabaseClient();
+      const { error } = await client.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Supabase sign-out failed:', error);
+    }
     setSession(null);
     window.location.href = resolvePagePath(redirectTo);
   });
@@ -589,11 +647,136 @@ function setupProfilePage() {
   const copyUidBtn = document.getElementById('copyUidBtn');
   const logoutButton = document.getElementById('logoutBtn');
   const secondaryLogoutButton = document.getElementById('logoutSecondary');
+  const avatarInput = document.getElementById('profileAvatarInput');
+  const avatarImage = document.getElementById('profileAvatarImage');
+  const avatarInitial = document.getElementById('profileAvatarInitial');
+  const avatarMessage = document.getElementById('profileAvatarMessage');
+  const avatarChange = document.querySelector('.avatar-change');
 
   if (currentUserEl) currentUserEl.textContent = name;
   if (profileUserName) profileUserName.textContent = name;
   if (profileUsername) profileUsername.textContent = name;
   if (profileUid) profileUid.textContent = currentUser?.uid || '-';
+  if (avatarInitial) avatarInitial.textContent = Array.from(name || 'U')[0].toUpperCase();
+
+  const displayAvatar = (url) => {
+    if (!avatarImage || !avatarInitial) return;
+    avatarImage.src = url || '';
+    avatarImage.hidden = !url;
+    avatarInitial.hidden = Boolean(url);
+  };
+
+  const loadAvatar = async () => {
+    const client = getSupabaseClient();
+    const { data, error } = await client.auth.getUser();
+    if (error) throw error;
+    if (!data.user) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+    const { data: profile, error: profileError } = await client
+      .from('flowlock_profiles')
+      .select('avatar_path')
+      .eq('id', data.user.id)
+      .single();
+    if (profileError) throw profileError;
+    if (!profile.avatar_path) return;
+
+    const { data: signedUrl, error: signedUrlError } = await client
+      .storage
+      .from(AVATAR_BUCKET)
+      .createSignedUrl(profile.avatar_path, 3600);
+    if (signedUrlError) throw signedUrlError;
+    displayAvatar(signedUrl.signedUrl);
+  };
+
+  loadAvatar().catch((error) => {
+    showMessage(avatarMessage, `โหลดรูปโปรไฟล์ไม่สำเร็จ (${error.message})`);
+  });
+
+  if (avatarInput) {
+    avatarInput.addEventListener('change', async () => {
+      const file = avatarInput.files && avatarInput.files[0];
+      if (!file) return;
+
+      const extension = AVATAR_FILE_EXTENSIONS[file.type];
+      if (!extension) {
+        showMessage(avatarMessage, 'รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP');
+        avatarInput.value = '';
+        return;
+      }
+      if (file.size > MAX_AVATAR_SIZE) {
+        showMessage(avatarMessage, 'รูปต้องมีขนาดไม่เกิน 5 MB');
+        avatarInput.value = '';
+        return;
+      }
+
+      avatarInput.disabled = true;
+      if (avatarChange) avatarChange.setAttribute('aria-disabled', 'true');
+      showMessage(avatarMessage, 'กำลังอัปโหลดรูป...');
+
+      let client;
+      let userId;
+      let avatarPath;
+      try {
+        client = getSupabaseClient();
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+        userId = authData.user.id;
+
+        const { data: profile, error: profileError } = await client
+          .from('flowlock_profiles')
+          .select('avatar_path')
+          .eq('id', userId)
+          .single();
+        if (profileError) throw profileError;
+
+        avatarPath = `${userId}/${Date.now()}-${Math.random().toString(16).slice(2)}.${extension}`;
+        const storage = client.storage.from(AVATAR_BUCKET);
+        const { error: uploadError } = await storage.upload(avatarPath, file, {
+          cacheControl: '3600',
+          contentType: file.type,
+          upsert: false
+        });
+        if (uploadError) throw uploadError;
+
+        const { data: signedUrl, error: signedUrlError } = await storage.createSignedUrl(avatarPath, 3600);
+        if (signedUrlError) {
+          const { error: cleanupError } = await storage.remove([avatarPath]);
+          if (cleanupError) console.error('Unable to clean up uploaded avatar:', cleanupError);
+          throw signedUrlError;
+        }
+
+        const { error: updateError } = await client
+          .from('flowlock_profiles')
+          .update({ avatar_path: avatarPath })
+          .eq('id', userId);
+        if (updateError) {
+          const { error: cleanupError } = await storage.remove([avatarPath]);
+          if (cleanupError) console.error('Unable to clean up uploaded avatar:', cleanupError);
+          throw updateError;
+        }
+
+        displayAvatar(signedUrl.signedUrl);
+        if (profile.avatar_path) {
+          const { error: removeError } = await storage.remove([profile.avatar_path]);
+          if (removeError) {
+            console.error('Unable to remove previous avatar:', removeError);
+            showMessage(avatarMessage, 'เปลี่ยนรูปแล้ว แต่ลบรูปเดิมไม่สำเร็จ', true);
+          } else {
+            showMessage(avatarMessage, 'เปลี่ยนรูปโปรไฟล์แล้ว', true);
+          }
+        } else {
+          showMessage(avatarMessage, 'เพิ่มรูปโปรไฟล์แล้ว', true);
+        }
+      } catch (error) {
+        showMessage(avatarMessage, `อัปโหลดรูปไม่สำเร็จ (${error.message})`);
+      } finally {
+        avatarInput.disabled = false;
+        avatarInput.value = '';
+        if (avatarChange) avatarChange.removeAttribute('aria-disabled');
+      }
+    });
+  }
 
   if (copyUidBtn) {
     copyUidBtn.addEventListener('click', async () => {

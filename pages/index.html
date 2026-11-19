@@ -588,8 +588,8 @@
               ความปลอดภัย
             </div>
             <div>
-              <strong data-count="1" data-suffix="-click">1-click</strong>
-              เปิดใช้งาน
+              <strong id="memberCount" aria-live="polite">—</strong>
+              สมาชิกทั้งหมด
             </div>
           </div>
         </div>
@@ -627,7 +627,7 @@
         <article class="feature">
           <div class="icon">🔒</div>
           <h3>ปลอดภัย</h3>
-          <p>ระบบรักษาความปลอดภัยด้วยการเข้ารหัสรหัสผ่านก่อนเก็บข้อมูลในเบราว์เซอร์</p>
+          <p>ยืนยันตัวตนผ่านระบบส่วนกลางที่จัดการรหัสผ่านอย่างปลอดภัย</p>
         </article>
 
         <article class="feature">
@@ -645,6 +645,10 @@
     </div>
   </div>
   <script src="../assets/js/fx.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/supabase-config.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
+  <script>loadMemberCount();</script>
 </body>
 </html>
 
