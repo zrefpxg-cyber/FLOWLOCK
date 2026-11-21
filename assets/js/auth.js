@@ -1,9 +1,5 @@
 const KEY_USERS = 'flowlock_users';
 const KEY_SESSION = 'flowlock_session';
-const KEY_FRIENDS = 'flowlock_friends';
-const KEY_REQUESTS = 'flowlock_friend_requests';
-const KEY_TRADES = 'flowlock_trades';
-const KEY_TRADE_ROOMS = 'flowlock_trade_rooms';
 const AVATAR_BUCKET = 'flowlock-avatars';
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 const AVATAR_FILE_EXTENSIONS = {
@@ -83,218 +79,86 @@ function getUserByUsername(username) {
   return users[key] || null;
 }
 
-function getUserByUid(value) {
-  const uid = String(value || '').trim().toUpperCase();
-  if (!uid) return null;
-
-  const users = getUsers();
-  return Object.values(users).find((user) => String(user.uid || '').toUpperCase() === uid) || null;
+async function getFriendsForCurrentUser() {
+  return loadFlowlockFriends();
 }
 
-function findUserByUidOrName(value) {
-  const input = String(value || '').trim();
-  if (!input) return null;
-
-  return getUserByUid(input) || getUserByUsername(input);
-}
-
-function getFriendMap() {
-  return readStorage(KEY_FRIENDS) || {};
-}
-
-function saveFriendMap(map) {
-  writeStorage(KEY_FRIENDS, map);
-}
-
-function getRequestMap() {
-  return readStorage(KEY_REQUESTS) || {};
-}
-
-function saveRequestMap(map) {
-  writeStorage(KEY_REQUESTS, map);
-}
-
-function getFriendsForCurrentUser() {
-  const currentName = getSession();
-  if (!currentName) return [];
-
-  const map = getFriendMap();
-  const key = String(currentName).trim().toLowerCase();
-  return Array.isArray(map[key]) ? map[key] : [];
-}
-
-function saveFriendsForCurrentUser(list) {
-  const currentName = getSession();
-  if (!currentName) return;
-
-  const map = getFriendMap();
-  map[String(currentName).trim().toLowerCase()] = list;
-  saveFriendMap(map);
-}
-
-function getPendingRequestsForCurrentUser() {
-  const currentName = getSession();
-  if (!currentName) return [];
-
-  const map = getRequestMap();
-  const key = String(currentName).trim().toLowerCase();
-  return Array.isArray(map[key]) ? map[key] : [];
-}
-
-function savePendingRequestsForCurrentUser(list) {
-  const currentName = getSession();
-  if (!currentName) return;
-
-  const map = getRequestMap();
-  map[String(currentName).trim().toLowerCase()] = list;
-  saveRequestMap(map);
-}
-
-function removeFriendFromList(username, friendName) {
-  if (!username || !friendName) return;
-
-  const map = getFriendMap();
-  const key = String(username).trim().toLowerCase();
-  const list = Array.isArray(map[key]) ? map[key] : [];
-  map[key] = list.filter((friend) => String(friend.name).toLowerCase() !== String(friendName).toLowerCase());
-  saveFriendMap(map);
-}
-
-function addFriendRequestToUser(targetUsername, senderUsername, senderUid) {
-  const map = getRequestMap();
-  const key = String(targetUsername).trim().toLowerCase();
-  const list = Array.isArray(map[key]) ? map[key] : [];
-
-  const duplicate = list.some((request) => String(request.name).toLowerCase() === String(senderUsername).toLowerCase());
-  if (!duplicate) {
-    list.push({ name: senderUsername, uid: senderUid || '-', createdAt: Date.now() });
-    map[key] = list;
-    saveRequestMap(map);
+async function addFriendByValue(value) {
+  if (!String(value || '').trim()) {
+    return { success: false, message: 'กรุณากรอกชื่อผู้ใช้หรือ UID' };
   }
+  const result = await sendFlowlockFriendRequest(value);
+  const messages = {
+    sent: 'ส่งคำขอเพื่อนแล้ว รออีกฝ่ายตอบรับ',
+    already_sent: 'ส่งคำขอเพื่อนนี้ไปแล้ว กำลังรอการตอบรับ',
+    already_friend: 'ผู้ใช้นี้เป็นเพื่อนอยู่แล้ว',
+    incoming_pending: 'ผู้ใช้นี้ส่งคำขอถึงคุณแล้ว ไปที่หน้าเพื่อนเพื่อกดรับ',
+    not_found: 'ไม่พบบัญชีนี้ ตรวจสอบชื่อผู้ใช้หรือ UID',
+    self: 'ไม่สามารถเพิ่มตัวเองเป็นเพื่อนได้'
+  };
+  return { success: result === 'sent', message: messages[result] || 'ส่งคำขอเพื่อนไม่สำเร็จ' };
 }
 
-function removeRequestForUser(targetUsername, senderName) {
-  const map = getRequestMap();
-  const key = String(targetUsername).trim().toLowerCase();
-  const list = Array.isArray(map[key]) ? map[key] : [];
-  map[key] = list.filter((request) => String(request.name).toLowerCase() !== String(senderName).toLowerCase());
-  saveRequestMap(map);
+async function acceptFriendRequest(requestId) {
+  return respondToFlowlockFriendRequest(requestId, true);
 }
 
-function addFriendByValue(value) {
-  const currentName = getSession();
-  if (!currentName) {
-    return { success: false, message: 'กรุณาเข้าสู่ระบบก่อนเพิ่มเพื่อน' };
-  }
-
-  const currentUser = getCurrentUserRecord();
-  const friend = findUserByUidOrName(value);
-  if (!friend) {
-    return { success: false, message: 'ไม่พบผู้ใช้นี้ในระบบ' };
-  }
-
-  if (String(friend.name).toLowerCase() === String(currentName).toLowerCase()) {
-    return { success: false, message: 'ไม่สามารถเพิ่มตัวเองเป็นเพื่อนได้' };
-  }
-
-  const currentFriends = getFriendsForCurrentUser();
-  const alreadyFriend = currentFriends.some((item) => String(item.uid || '').toUpperCase() === String(friend.uid || '').toUpperCase());
-  if (alreadyFriend) {
-    return { success: false, message: 'ผู้ใช้นี้อยู่ในรายชื่อเพื่อนแล้ว' };
-  }
-
-  const requests = getPendingRequestsForCurrentUser();
-  const alreadyRequest = requests.some((request) => String(request.name).toLowerCase() === String(friend.name).toLowerCase());
-  if (alreadyRequest) {
-    return { success: false, message: 'คุณส่งคำขอเพื่อนไปแล้ว' };
-  }
-
-  addFriendRequestToUser(friend.name, currentName, currentUser?.uid || '-');
-
-  return { success: true, message: 'ส่งคำขอเพื่อนแล้ว รอการยืนยัน', friend };
+async function deleteFriend(friendId) {
+  return removeFlowlockFriend(friendId);
 }
 
-function acceptFriendRequest(senderName) {
-  const currentName = getSession();
-  if (!currentName) return false;
-
-  const sender = findUserByUidOrName(senderName);
-  if (!sender) return false;
-
-  const currentMap = getFriendMap();
-  const currentKey = String(currentName).trim().toLowerCase();
-  const senderKey = String(sender.name).trim().toLowerCase();
-
-  const currentList = Array.isArray(currentMap[currentKey]) ? currentMap[currentKey] : [];
-  const senderList = Array.isArray(currentMap[senderKey]) ? currentMap[senderKey] : [];
-
-  const currentHas = currentList.some((item) => String(item.uid || '').toUpperCase() === String(sender.uid || '').toUpperCase());
-  if (!currentHas) currentList.push({ uid: sender.uid, name: sender.name });
-
-  const senderHas = senderList.some((item) => String(item.uid || '').toUpperCase() === String(getCurrentUserRecord()?.uid || '').toUpperCase());
-  if (!senderHas) senderList.push({ uid: getCurrentUserRecord()?.uid || '-', name: currentName });
-
-  currentMap[currentKey] = currentList;
-  currentMap[senderKey] = senderList;
-  saveFriendMap(currentMap);
-
-  removeRequestForUser(currentName, sender.name);
-  return true;
-}
-
-function deleteFriend(friendName) {
-  const currentName = getSession();
-  if (!currentName || !friendName) return false;
-
-  const friend = findUserByUidOrName(friendName);
-  if (!friend) {
-    removeFriendFromList(currentName, friendName);
-    return true;
-  }
-
-  removeFriendFromList(currentName, friend.name);
-  removeFriendFromList(friend.name, currentName);
-  return true;
-}
-
-function renderPendingRequests(container) {
+async function renderPendingRequests(container) {
   if (!container) return;
 
-  const requests = getPendingRequestsForCurrentUser();
+  try {
+    const requests = await loadFlowlockFriendRequests();
+    if (!requests.length) {
+      container.innerHTML = '<div class="empty-friend">ยังไม่มีคำขอเพื่อน</div>';
+      return;
+    }
 
-  if (!requests.length) {
-    container.innerHTML = '<div class="empty-friend">ยังไม่มีคำขอเพื่อน</div>';
-    return;
-  }
-
-  container.innerHTML = requests.map((request) => `
-    <div class="friend-card">
-      <strong>${escapeHtml(request.name)}</strong>
-      <small>${escapeHtml(request.uid || 'UID ไม่ระบุ')}</small>
-      <div class="stack">
-        <button class="mini-btn accept-request" type="button" data-request-name="${escapeHtml(request.name)}">รับเพื่อน</button>
-        <button class="mini-btn delete-request" type="button" data-request-name="${escapeHtml(request.name)}">ลบ</button>
+    container.innerHTML = requests.map((request) => `
+      <div class="friend-card">
+        <strong>${escapeHtml(request.name)}</strong>
+        <small>${escapeHtml(request.uid || 'UID ไม่ระบุ')} · ${request.direction === 'incoming' ? 'ส่งคำขอถึงคุณ' : 'รอการตอบรับ'}</small>
+        <div class="stack">
+          ${request.direction === 'incoming'
+            ? `<button class="mini-btn accept-request" type="button" data-request-id="${escapeHtml(request.id)}">รับเพื่อน</button>`
+            : ''}
+          <button class="mini-btn delete-request" type="button" data-request-id="${escapeHtml(request.id)}">${request.direction === 'incoming' ? 'ปฏิเสธ' : 'ยกเลิกคำขอ'}</button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
 
-  container.querySelectorAll('.accept-request').forEach((button) => {
-    button.addEventListener('click', () => {
-      const name = button.getAttribute('data-request-name');
-      if (acceptFriendRequest(name)) {
-        renderPendingRequests(container);
-        renderFriendList(document.getElementById('friendsList'));
-      }
+    container.querySelectorAll('.accept-request').forEach((button) => {
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await acceptFriendRequest(button.dataset.requestId);
+          await renderPendingRequests(container);
+          await renderFriendList(document.getElementById('friendsList'));
+        } catch (error) {
+          showMessage(container, error.message || 'รับคำขอเพื่อนไม่สำเร็จ');
+          button.disabled = false;
+        }
+      });
     });
-  });
 
-  container.querySelectorAll('.delete-request').forEach((button) => {
-    button.addEventListener('click', () => {
-      const name = button.getAttribute('data-request-name');
-      removeRequestForUser(getSession(), name);
-      renderPendingRequests(container);
+    container.querySelectorAll('.delete-request').forEach((button) => {
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await respondToFlowlockFriendRequest(button.dataset.requestId, false);
+          await renderPendingRequests(container);
+        } catch (error) {
+          showMessage(container, error.message || 'จัดการคำขอเพื่อนไม่สำเร็จ');
+          button.disabled = false;
+        }
+      });
     });
-  });
+  } catch (error) {
+    container.innerHTML = `<div class="msg">${escapeHtml(error.message || 'โหลดคำขอเพื่อนไม่สำเร็จ')}</div>`;
+  }
 }
 
 function openFriendProfile(friend) {
@@ -319,10 +183,16 @@ function closeFriendProfile() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
-function renderFriendList(container) {
+async function renderFriendList(container) {
   if (!container) return;
 
-  const list = getFriendsForCurrentUser();
+  let list;
+  try {
+    list = await getFriendsForCurrentUser();
+  } catch (error) {
+    container.innerHTML = `<div class="msg">${escapeHtml(error.message || 'โหลดรายชื่อเพื่อนไม่สำเร็จ')}</div>`;
+    return;
+  }
 
   if (!list.length) {
     container.innerHTML = '<div class="empty-friend">ยังไม่มีเพื่อนในรายชื่อ</div>';
@@ -336,7 +206,7 @@ function renderFriendList(container) {
       <div class="stack">
         <button class="mini-copy" type="button" data-copy="${escapeHtml(friend.uid)}">คัดลอก</button>
         <button class="mini-btn view-friend" type="button" data-friend-name="${escapeHtml(friend.name)}" data-friend-uid="${escapeHtml(friend.uid || '')}">ดูโปรไฟล์</button>
-        <button class="mini-btn delete-friend" type="button" data-friend-name="${escapeHtml(friend.name)}">ลบเพื่อน</button>
+        <button class="mini-btn delete-friend" type="button" data-friend-id="${escapeHtml(friend.id)}">ลบเพื่อน</button>
       </div>
     </div>
   `).join('');
@@ -365,11 +235,15 @@ function renderFriendList(container) {
   });
 
   container.querySelectorAll('.delete-friend').forEach((button) => {
-    button.addEventListener('click', () => {
-      const friendName = button.getAttribute('data-friend-name');
-      if (deleteFriend(friendName)) {
-        renderFriendList(container);
-        renderPendingRequests(document.getElementById('pendingRequests'));
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await deleteFriend(button.dataset.friendId);
+        await renderFriendList(container);
+        await renderPendingRequests(document.getElementById('pendingRequests'));
+      } catch (error) {
+        showMessage(container, error.message || 'ลบเพื่อนไม่สำเร็จ');
+        button.disabled = false;
       }
     });
   });
@@ -620,7 +494,9 @@ function setupAppPage() {
     closeDrawer.addEventListener('click', () => friendDrawer.classList.remove('open'));
   }
 
-  renderFriendList(friendList);
+  const refreshFriends = () => renderFriendList(friendList);
+  refreshFriends();
+  window.setInterval(refreshFriends, 5000);
 
   if (profileShortcut) {
     profileShortcut.addEventListener('click', () => {
@@ -811,12 +687,21 @@ function setupFriendsAddPage() {
 
   if (!form || !input) return;
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const result = addFriendByValue(input.value);
-    showMessage(message, result.message, result.success);
-    if (result.success) {
-      input.value = '';
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+      const result = await addFriendByValue(input.value);
+      showMessage(message, result.message, result.success);
+      if (result.success) {
+        input.value = '';
+      }
+    } catch (error) {
+      showMessage(message, error.message || 'ค้นหาบัญชีไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      if (submitButton) submitButton.disabled = false;
     }
   });
 }
@@ -862,32 +747,19 @@ function setupFriendsListPage() {
   }
 
   attachLogoutButton(logoutButton, 'login.html');
-  renderPendingRequests(pendingEl);
-  renderFriendList(listEl);
+  const refreshFriends = async () => {
+    await Promise.all([
+      renderPendingRequests(pendingEl),
+      renderFriendList(listEl)
+    ]);
+  };
+  refreshFriends();
+  window.setInterval(refreshFriends, 5000);
 }
 
-function getTrades() {
-  const trades = readStorage(KEY_TRADES);
-  return Array.isArray(trades) ? trades : [];
-}
-
-function getTradeRooms() {
-  const rooms = readStorage(KEY_TRADE_ROOMS);
-  return Array.isArray(rooms) ? rooms : [];
-}
-
-function saveTradeRooms(rooms) {
-  return writeStorage(KEY_TRADE_ROOMS, rooms);
-}
-
-function getTradeRoom(roomId) {
-  return getTradeRooms().find((room) => room.id === roomId) || null;
-}
-
-function setupTradePage() {
+async function setupTradePage() {
   if (!requireAuth()) return;
 
-  const currentName = getSession();
   const currentUserEl = document.getElementById('currentUser');
   const logoutButton = document.getElementById('logoutBtn');
   const friendSelect = document.getElementById('tradeFriend');
@@ -895,56 +767,100 @@ function setupTradePage() {
   const message = document.getElementById('tradeRoomMessage');
   const roomsList = document.getElementById('tradeRooms');
 
-  if (currentUserEl) currentUserEl.textContent = currentName;
   attachLogoutButton(logoutButton, 'login.html');
 
-  const friends = getFriendsForCurrentUser();
-  if (friendSelect) {
+  let identity;
+  let friends;
+  try {
+    identity = await getFlowlockIdentity();
+    friends = await getFriendsForCurrentUser();
+    if (currentUserEl) currentUserEl.textContent = identity.name;
     friendSelect.innerHTML = friends.length
-      ? friends.map((friend) => `<option value="${escapeHtml(friend.name)}">${escapeHtml(friend.name)}</option>`).join('')
+      ? friends.map((friend) => `<option value="${escapeHtml(friend.id)}">${escapeHtml(friend.name)}</option>`).join('')
       : '<option value="">ยังไม่มีเพื่อนในรายชื่อ</option>';
+  } catch (error) {
+    showMessage(message, error.message || 'โหลดรายชื่อเพื่อนไม่สำเร็จ');
+    return;
   }
 
-  createRoomButton.addEventListener('click', () => {
-    const guest = friendSelect.value;
-    if (!friends.some((friend) => friend.name === guest)) {
-      showMessage(message, 'กรุณาเลือกเพื่อนก่อนส่งคำเชิญ');
-      return;
-    }
+  createRoomButton.addEventListener('click', async () => {
+    createRoomButton.disabled = true;
+    try {
+      const friend = friends.find((item) => item.id === friendSelect.value);
+      if (!friend) {
+        showMessage(message, 'กรุณาเลือกเพื่อนก่อนส่งคำเชิญ');
+        return;
+      }
 
-    const rooms = getTradeRooms();
-    const existing = rooms.find((room) => room.host === currentName && room.guest === guest && room.status !== 'closed');
-    if (existing) {
-      window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(existing.id)}`;
-      return;
-    }
+      const existingRooms = await listFlowlockSharedRooms('trade', identity);
+      const existing = existingRooms.find((row) =>
+        [row.payload.hostId, row.payload.guestId].includes(identity.id)
+        && [row.payload.hostId, row.payload.guestId].includes(friend.id)
+        && row.payload.status !== 'closed'
+      );
+      if (existing) {
+        window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(existing.id)}`;
+        return;
+      }
 
-    const room = {
-      id: `ROOM-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-      host: currentName,
-      guest,
-      status: 'invited',
-      ready: {},
-      createdAt: Date.now()
-    };
-    rooms.push(room);
-    if (!saveTradeRooms(rooms)) {
-      showMessage(message, 'สร้างห้องไม่สำเร็จ กรุณาตรวจสอบพื้นที่จัดเก็บ');
-      return;
+      const roomId = `trade-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+      const room = {
+        id: roomId,
+        host: identity.name,
+        hostId: identity.id,
+        guest: friend.name,
+        guestId: friend.id,
+        status: 'invited',
+        ready: {},
+        trades: [],
+        createdAt: Date.now()
+      };
+      await createFlowlockSharedRoom({
+        id: roomId,
+        kind: 'trade',
+        ownerId: identity.id,
+        participantIds: [identity.id, friend.id],
+        payload: room
+      });
+      window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(room.id)}`;
+    } catch (error) {
+      showMessage(message, error.message || 'สร้างห้องเทรดไม่สำเร็จ');
+    } finally {
+      createRoomButton.disabled = false;
     }
-    window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(room.id)}`;
   });
 
-  renderTradeRooms(roomsList, currentName);
-  window.addEventListener('storage', () => renderTradeRooms(roomsList, currentName));
+  const refreshFriends = async () => {
+    try {
+      const selectedFriend = friendSelect.value;
+      friends = await getFriendsForCurrentUser();
+      friendSelect.innerHTML = friends.length
+        ? friends.map((friend) => `<option value="${escapeHtml(friend.id)}">${escapeHtml(friend.name)}</option>`).join('')
+        : '<option value="">ยังไม่มีเพื่อนในรายชื่อ</option>';
+      if (friends.some((friend) => friend.id === selectedFriend)) friendSelect.value = selectedFriend;
+    } catch (error) {
+      showMessage(message, error.message || 'โหลดรายชื่อเพื่อนไม่สำเร็จ');
+    }
+  };
+  const refresh = () => renderTradeRooms(roomsList, identity);
+  refresh();
+  window.setInterval(refreshFriends, 5000);
+  window.setInterval(refresh, 3000);
 }
 
-function renderTradeRooms(container, currentName) {
+async function renderTradeRooms(container, identity) {
   if (!container) return;
 
-  const rooms = getTradeRooms().filter((room) =>
-    (room.host === currentName || room.guest === currentName) && room.status !== 'closed'
-  ).sort((first, second) => second.createdAt - first.createdAt);
+  let rooms;
+  try {
+    const rows = await listFlowlockSharedRooms('trade', identity);
+    rooms = rows.map((row) => row.payload)
+      .filter((room) => room.status !== 'closed')
+      .sort((first, second) => second.createdAt - first.createdAt);
+  } catch (error) {
+    container.innerHTML = `<p class="msg">${escapeHtml(error.message || 'โหลดห้องเทรดไม่สำเร็จ')}</p>`;
+    return;
+  }
 
   if (!rooms.length) {
     container.innerHTML = '<p class="empty-friend">ยังไม่มีห้องเทรด</p>';
@@ -952,9 +868,11 @@ function renderTradeRooms(container, currentName) {
   }
 
   container.innerHTML = rooms.map((room) => {
-    const incoming = room.guest === currentName && room.status === 'invited';
-    const friend = room.host === currentName ? room.guest : room.host;
-    const state = room.status === 'joined' ? 'เพื่อนเข้าห้องแล้ว' : incoming ? 'มีคำเชิญใหม่' : 'รอเพื่อนเข้าห้อง';
+    const incoming = room.guestId === identity.id && room.status === 'invited';
+    const friend = room.hostId === identity.id ? room.guest : room.host;
+    const state = room.status === 'joined' || room.status === 'trading'
+      ? 'เพื่อนเข้าห้องแล้ว'
+      : incoming ? 'มีคำเชิญใหม่' : 'รอเพื่อนเข้าห้อง';
     return `
       <article class="trade-request">
         <div><strong>ห้องกับ ${escapeHtml(friend)}</strong><span>${state}</span></div>
@@ -964,26 +882,32 @@ function renderTradeRooms(container, currentName) {
   }).join('');
 
   container.querySelectorAll('.open-trade-room').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const roomId = button.dataset.roomId;
-      const rooms = getTradeRooms();
-      const room = rooms.find((item) => item.id === roomId);
-      if (!room || room.guest !== currentName || room.status !== 'invited') {
+      button.disabled = true;
+      try {
+        const row = await getFlowlockSharedRoom(roomId);
+        const room = row?.payload;
+        if (!row || !room || !row.participant_ids.includes(identity.id)) {
+          throw new Error('ไม่พบห้องนี้ หรือคุณไม่ได้รับเชิญ');
+        }
+        if (room.guestId === identity.id && room.status === 'invited') {
+          room.status = 'joined';
+          room.joinedAt = Date.now();
+          await updateFlowlockSharedRoom(roomId, row.participant_ids, room, row.updated_at);
+        }
         window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(roomId)}`;
-        return;
+      } catch (error) {
+        showMessage(container, error.message || 'เปิดห้องเทรดไม่สำเร็จ');
+        button.disabled = false;
       }
-      room.status = 'joined';
-      room.joinedAt = Date.now();
-      saveTradeRooms(rooms);
-      window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(roomId)}`;
     });
   });
 }
 
-function setupTradeRoomPage() {
+async function setupTradeRoomPage() {
   if (!requireAuth()) return;
 
-  const currentName = getSession();
   const currentUserEl = document.getElementById('currentUser');
   const logoutButton = document.getElementById('logoutBtn');
   const roomState = document.getElementById('tradeRoomState');
@@ -997,12 +921,20 @@ function setupTradeRoomPage() {
   const formTitle = document.getElementById('roomTradeTitle');
   const roomId = new URLSearchParams(window.location.search).get('room');
 
-  if (currentUserEl) currentUserEl.textContent = currentName;
   attachLogoutButton(logoutButton, 'login.html');
+  let identity;
+  let room;
+  let updatedAt;
+  try {
+    identity = await getFlowlockIdentity();
+    if (currentUserEl) currentUserEl.textContent = identity.name;
+  } catch (error) {
+    roomState.textContent = error.message || 'ไม่สามารถตรวจสอบบัญชีได้';
+    return;
+  }
 
   const render = () => {
-    const room = getTradeRoom(roomId);
-    if (!room || ![room.host, room.guest].includes(currentName)) {
+    if (!room || ![room.hostId, room.guestId].includes(identity.id)) {
       roomState.textContent = 'ไม่พบห้องนี้ หรือคุณไม่ได้รับเชิญ';
       readyButton.hidden = true;
       actions.hidden = true;
@@ -1010,20 +942,20 @@ function setupTradeRoomPage() {
     }
 
     const isJoined = room.status === 'joined' || room.status === 'trading';
-    const everyoneReady = Boolean(room.ready?.[room.host] && room.ready?.[room.guest]);
+    const everyoneReady = Boolean(room.ready?.[room.hostId] && room.ready?.[room.guestId]);
     roomState.textContent = room.status === 'invited'
       ? `กำลังรอ ${room.guest} เข้าห้อง`
       : everyoneReady ? 'ทั้งสองฝ่ายพร้อมแล้ว' : 'ยืนยันความพร้อมเมื่อทั้งสองคนอยู่ในห้อง';
-    members.innerHTML = [room.host, room.guest].map((name) => {
-      const inRoom = name === room.host || isJoined;
-      const ready = Boolean(room.ready?.[name]);
-      return `<div class="trade-member"><strong>${escapeHtml(name)}${name === currentName ? ' (คุณ)' : ''}</strong><span>${!inRoom ? 'รอเข้าห้อง' : ready ? 'พร้อมแล้ว' : 'อยู่ในห้อง'}</span></div>`;
+    members.innerHTML = [[room.host, room.hostId], [room.guest, room.guestId]].map(([name, userId]) => {
+      const inRoom = room.status !== 'invited' || name === room.host;
+      const ready = Boolean(room.ready?.[userId]);
+      return `<div class="trade-member"><strong>${escapeHtml(name)}${name === identity.name ? ' (คุณ)' : ''}</strong><span>${!inRoom ? 'รอเข้าห้อง' : ready ? 'พร้อมแล้ว' : 'อยู่ในห้อง'}</span></div>`;
     }).join('');
     readyButton.hidden = !isJoined || everyoneReady;
     readyButton.disabled = !isJoined || everyoneReady;
-    readyButton.textContent = room.ready?.[currentName] ? 'ยกเลิกความพร้อม' : 'ตกลง พร้อมเทรด';
+    readyButton.textContent = room.ready?.[identity.id] ? 'ยกเลิกความพร้อม' : 'ตกลง พร้อมเทรด';
     actions.hidden = !everyoneReady;
-    renderRoomTrades(document.getElementById('roomTradeHistory'), room);
+    renderRoomTrades(document.getElementById('roomTradeHistory'), room, identity.id, persist);
   };
 
   if (!roomId) {
@@ -1032,16 +964,43 @@ function setupTradeRoomPage() {
     return;
   }
 
-  readyButton.addEventListener('click', () => {
-    const rooms = getTradeRooms();
-    const room = rooms.find((item) => item.id === roomId);
-    if (!room || room.status !== 'joined' || ![room.host, room.guest].includes(currentName)) return;
-    room.ready = room.ready || {};
-    room.ready[currentName] = !room.ready[currentName];
-    if (room.ready[room.host] && room.ready[room.guest]) room.status = 'trading';
-    else room.status = 'joined';
-    saveTradeRooms(rooms);
-    render();
+  const persist = async () => {
+    const row = await updateFlowlockSharedRoom(roomId, [room.hostId, room.guestId], room, updatedAt);
+    updatedAt = row.updated_at;
+  };
+  const refresh = async (force = false) => {
+    try {
+      const row = await getFlowlockSharedRoom(roomId);
+      if (!row) {
+        room = null;
+        render();
+        return;
+      }
+      if (force || row.updated_at !== updatedAt) {
+        room = row.payload;
+        updatedAt = row.updated_at;
+        render();
+      }
+    } catch (error) {
+      roomState.textContent = error.message || 'โหลดข้อมูลห้องไม่สำเร็จ';
+    }
+  };
+
+  readyButton.addEventListener('click', async () => {
+    readyButton.disabled = true;
+    try {
+      await refresh(true);
+      if (!room || room.status !== 'joined' || ![room.hostId, room.guestId].includes(identity.id)) return;
+      room.ready = room.ready || {};
+      room.ready[identity.id] = !room.ready[identity.id];
+      room.status = room.ready[room.hostId] && room.ready[room.guestId] ? 'trading' : 'joined';
+      await persist();
+      render();
+    } catch (error) {
+      showMessage(roomMessage, error.message || 'บันทึกสถานะไม่สำเร็จ');
+    } finally {
+      readyButton.disabled = false;
+    }
   });
 
   document.querySelectorAll('[data-room-role]').forEach((button) => {
@@ -1054,48 +1013,50 @@ function setupTradeRoomPage() {
     });
   });
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const room = getTradeRoom(roomId);
-    const details = document.getElementById('roomTradeDetails').value.trim();
-    if (!room || room.status !== 'trading' || !details) {
-      showMessage(formMessage, 'ทั้งสองฝ่ายต้องอยู่ในห้องและยืนยันความพร้อมก่อน');
-      return;
+    try {
+      await refresh(true);
+      const details = document.getElementById('roomTradeDetails').value.trim();
+      if (!room || room.status !== 'trading' || !details) {
+        showMessage(formMessage, 'ทั้งสองฝ่ายต้องอยู่ในห้องและยืนยันความพร้อมก่อน');
+        return;
+      }
+      if (/https?:\/\/|www\.|password|passwd|passcode|otp|cookie|token|access.?key|login|รหัสผ่าน|พาสเวิร์ด|รหัสผู้ใช้|ชื่อผู้ใช้|อั่งเปา|ทรูมันนี่|ลิงก์|link|บัญชี/i.test(details)) {
+        showMessage(formMessage, 'รายละเอียดนี้มีลิงก์หรือข้อมูลอ่อนไหว กรุณาระบุเฉพาะรายการทั่วไป');
+        return;
+      }
+      room.trades = Array.isArray(room.trades) ? room.trades : [];
+      room.trades.push({
+        id: `ITEM-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        roomId,
+        from: identity.name,
+        fromId: identity.id,
+        to: room.hostId === identity.id ? room.guest : room.host,
+        role: roleInput.value,
+        category: document.getElementById('roomTradeCategory').value,
+        details,
+        confirmedBy: [],
+        createdAt: Date.now()
+      });
+      await persist();
+      form.reset();
+      form.hidden = true;
+      roomMessage.textContent = 'เพิ่มรายการในห้องแล้ว';
+      render();
+    } catch (error) {
+      showMessage(formMessage, error.message || 'บันทึกรายการไม่สำเร็จ');
     }
-    if (/https?:\/\/|www\.|password|passwd|passcode|otp|cookie|token|access.?key|login|รหัสผ่าน|พาสเวิร์ด|รหัสผู้ใช้|ชื่อผู้ใช้|อั่งเปา|ทรูมันนี่|ลิงก์|link|บัญชี/i.test(details)) {
-      showMessage(formMessage, 'รายละเอียดนี้มีลิงก์หรือข้อมูลอ่อนไหว กรุณาระบุเฉพาะรายการทั่วไป');
-      return;
-    }
-    const trades = getTrades();
-    trades.push({
-      id: `ITEM-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-      roomId,
-      from: currentName,
-      to: room.host === currentName ? room.guest : room.host,
-      role: roleInput.value,
-      category: document.getElementById('roomTradeCategory').value,
-      details,
-      confirmedBy: [],
-      createdAt: Date.now()
-    });
-    if (!writeStorage(KEY_TRADES, trades)) {
-      showMessage(formMessage, 'บันทึกรายการไม่สำเร็จ กรุณาตรวจสอบพื้นที่จัดเก็บ');
-      return;
-    }
-    form.reset();
-    form.hidden = true;
-    roomMessage.textContent = 'เพิ่มรายการในห้องแล้ว';
-    render();
   });
 
-  window.addEventListener('storage', render);
-  render();
+  await refresh(true);
+  window.setInterval(() => refresh(), 2500);
 }
 
-function renderRoomTrades(container, room) {
+function renderRoomTrades(container, room, currentUserId, persist) {
   if (!container) return;
 
-  const trades = getTrades().filter((trade) => trade.roomId === room.id)
+  const trades = (room.trades || [])
     .sort((first, second) => first.createdAt - second.createdAt);
   if (!trades.length) {
     container.innerHTML = '<p class="empty-friend">ยังไม่มีรายการในห้อง</p>';
@@ -1104,15 +1065,15 @@ function renderRoomTrades(container, room) {
 
   container.innerHTML = trades.map((trade) => {
     const confirmed = Array.isArray(trade.confirmedBy) ? trade.confirmedBy : [];
-    const done = confirmed.includes(room.host) && confirmed.includes(room.guest);
-    const isParticipant = [room.host, room.guest].includes(getSession());
+    const done = confirmed.includes(room.hostId) && confirmed.includes(room.guestId);
+    const isParticipant = [room.hostId, room.guestId].includes(currentUserId);
     return `
       <article class="trade-request">
         <div><strong>${trade.role === 'offer' ? 'ผู้ให้' : 'ผู้รับ'} · ${escapeHtml(trade.category)}</strong>
           <span>${escapeHtml(trade.from)} · ${done ? 'ยืนยันครบสองฝ่าย' : `ยืนยันแล้ว ${confirmed.length}/2`}</span>
           <p>${escapeHtml(trade.details)}</p>
         </div>
-        ${isParticipant && !confirmed.includes(getSession())
+        ${isParticipant && !confirmed.includes(currentUserId)
           ? `<button class="mini-btn confirm-room-trade" type="button" data-trade-id="${escapeHtml(trade.id)}">ยืนยันรายการ</button>`
           : ''}
       </article>
@@ -1120,21 +1081,25 @@ function renderRoomTrades(container, room) {
   }).join('');
 
   container.querySelectorAll('.confirm-room-trade').forEach((button) => {
-    button.addEventListener('click', () => {
-      const trades = getTrades();
-      const trade = trades.find((item) => item.id === button.dataset.tradeId && item.roomId === room.id);
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      const trade = (room.trades || []).find((item) => item.id === button.dataset.tradeId);
       if (!trade) return;
       trade.confirmedBy = Array.isArray(trade.confirmedBy) ? trade.confirmedBy : [];
-      const currentName = getSession();
-      if (![room.host, room.guest].includes(currentName) || trade.confirmedBy.includes(currentName)) return;
-      trade.confirmedBy.push(currentName);
-      writeStorage(KEY_TRADES, trades);
-      renderRoomTrades(container, room);
+      if (![room.hostId, room.guestId].includes(currentUserId) || trade.confirmedBy.includes(currentUserId)) return;
+      trade.confirmedBy.push(currentUserId);
+      try {
+        await persist();
+        renderRoomTrades(container, room, currentUserId, persist);
+      } catch (error) {
+        showMessage(container, error.message || 'ยืนยันรายการไม่สำเร็จ');
+        button.disabled = false;
+      }
     });
   });
 }
 
-function setupTradeHistoryPage() {
+async function setupTradeHistoryPage() {
   if (!requireAuth()) return;
 
   const currentName = getSession();
@@ -1144,30 +1109,43 @@ function setupTradeHistoryPage() {
   if (currentUserEl) currentUserEl.textContent = currentName;
   attachLogoutButton(logoutButton, 'login.html');
 
-  const render = () => {
-    const rooms = getTradeRooms();
-    const roomMap = new Map(rooms.map((room) => [room.id, room]));
-    const history = getTrades().filter((trade) => trade.from === currentName || trade.to === currentName)
-      .sort((first, second) => second.createdAt - first.createdAt);
-    if (!history.length) {
-      historyList.innerHTML = '<p class="empty-friend">ยังไม่มีประวัติรายการ</p>';
-      return;
+  let identity;
+  try {
+    identity = await getFlowlockIdentity();
+  } catch (error) {
+    historyList.innerHTML = `<p class="msg">${escapeHtml(error.message || 'ไม่สามารถตรวจสอบบัญชีได้')}</p>`;
+    return;
+  }
+
+  const render = async () => {
+    try {
+      const rows = await listFlowlockSharedRooms('trade', identity);
+      const rooms = rows.map((row) => row.payload);
+      const history = rooms.flatMap((room) => room.trades || [])
+        .sort((first, second) => second.createdAt - first.createdAt);
+      if (!history.length) {
+        historyList.innerHTML = '<p class="empty-friend">ยังไม่มีประวัติรายการ</p>';
+        return;
+      }
+      const roomMap = new Map(rooms.map((room) => [room.id, room]));
+      historyList.innerHTML = history.map((trade) => {
+        const room = roomMap.get(trade.roomId);
+        const confirmed = Array.isArray(trade.confirmedBy) ? trade.confirmedBy : [];
+        const done = room && confirmed.includes(room.hostId) && confirmed.includes(room.guestId);
+        const other = trade.from === currentName ? trade.to : trade.from;
+        return `<article class="trade-history-item">
+          <div class="trade-history-top"><strong>${trade.role === 'offer' ? 'ผู้ให้' : 'ผู้รับ'} · ${escapeHtml(trade.category)}</strong><time>${new Date(trade.createdAt).toLocaleString('th-TH')}</time></div>
+          <p>${escapeHtml(trade.details)}</p>
+          <span>${trade.from === currentName ? 'ส่งให้' : 'ได้รับจาก'} ${escapeHtml(other)} · ${done ? 'ยืนยันครบสองฝ่าย' : `ยืนยันแล้ว ${confirmed.length}/2`}</span>
+        </article>`;
+      }).join('');
+    } catch (error) {
+      historyList.innerHTML = `<p class="msg">${escapeHtml(error.message || 'โหลดประวัติไม่สำเร็จ')}</p>`;
     }
-    historyList.innerHTML = history.map((trade) => {
-      const room = roomMap.get(trade.roomId);
-      const confirmed = Array.isArray(trade.confirmedBy) ? trade.confirmedBy : [];
-      const done = room && confirmed.includes(room.host) && confirmed.includes(room.guest);
-      const other = trade.from === currentName ? trade.to : trade.from;
-      return `<article class="trade-history-item">
-        <div class="trade-history-top"><strong>${trade.role === 'offer' ? 'ผู้ให้' : 'ผู้รับ'} · ${escapeHtml(trade.category)}</strong><time>${new Date(trade.createdAt).toLocaleString('th-TH')}</time></div>
-        <p>${escapeHtml(trade.details)}</p>
-        <span>${trade.from === currentName ? 'ส่งให้' : 'ได้รับจาก'} ${escapeHtml(other)} · ${done ? 'ยืนยันครบสองฝ่าย' : `ยืนยันแล้ว ${confirmed.length}/2`}</span>
-      </article>`;
-    }).join('');
   };
 
   render();
-  window.addEventListener('storage', render);
+  window.setInterval(render, 5000);
 }
 
 if (document.body && document.body.dataset.page === 'login') {

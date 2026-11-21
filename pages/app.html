@@ -59,6 +59,7 @@
         <button class="btn game-open" type="button" data-game="property">เลือกโหมด</button>
       </article>
     </section>
+    <p id="appGameMessage" class="msg" aria-live="polite"></p>
 
     <dialog id="gameModeDialog" class="game-dialog">
       <form method="dialog"><button class="drawer-close dialog-close" aria-label="ปิด">✕</button></form>
@@ -79,6 +80,9 @@
     </dialog>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/supabase-config.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/games.js"></script>
 </body>

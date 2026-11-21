@@ -35,6 +35,165 @@ async function getSupabaseProfile(client, userId) {
   return data;
 }
 
+async function findSupabaseProfileByUidOrUsername(value) {
+  const searchValue = String(value || '').trim();
+  if (!searchValue) return null;
+
+  const { data, error } = await getSupabaseClient().rpc('find_flowlock_profile', {
+    search_value: searchValue
+  });
+  if (error) {
+    throw new Error(`ค้นหาสมาชิกไม่สำเร็จ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล (${error.message})`);
+  }
+
+  const profile = Array.isArray(data) ? data[0] : null;
+  return profile ? { name: profile.username, uid: profile.uid } : null;
+}
+
+async function getFlowlockIdentity() {
+  const client = getSupabaseClient();
+  const { data: authData, error: authError } = await client.auth.getUser();
+  if (authError) throw authError;
+  if (!authData.user) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+  const profile = await getSupabaseProfile(client, authData.user.id);
+  return { id: authData.user.id, name: profile.username, uid: profile.uid };
+}
+
+async function loadFlowlockFriends() {
+  const { data, error } = await getSupabaseClient().rpc('get_flowlock_friends');
+  if (error) throw new Error(`โหลดรายชื่อเพื่อนไม่สำเร็จ (${error.message})`);
+  return (data || []).map((friend) => ({
+    id: friend.id,
+    name: friend.username,
+    uid: friend.uid,
+    createdAt: friend.created_at
+  }));
+}
+
+async function loadFlowlockFriendRequests() {
+  const { data, error } = await getSupabaseClient().rpc('get_flowlock_friend_requests');
+  if (error) throw new Error(`โหลดคำขอเพื่อนไม่สำเร็จ (${error.message})`);
+  return (data || []).map((request) => ({
+    id: request.request_id,
+    direction: request.direction,
+    friendId: request.friend_id,
+    name: request.username,
+    uid: request.uid,
+    createdAt: request.created_at
+  }));
+}
+
+async function respondToFlowlockFriendRequest(requestId, accept) {
+  const { data, error } = await getSupabaseClient().rpc('respond_flowlock_friend_request', {
+    request_id: requestId,
+    accept_request: accept
+  });
+  if (error) throw new Error(`อัปเดตคำขอเพื่อนไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('คำขอนี้ถูกจัดการแล้วหรือไม่พบคำขอ');
+  return true;
+}
+
+async function removeFlowlockFriend(friendId) {
+  const { data, error } = await getSupabaseClient().rpc('remove_flowlock_friend', {
+    friend_id: friendId
+  });
+  if (error) throw new Error(`ลบเพื่อนไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('ไม่พบเพื่อนในรายชื่อ');
+  return true;
+}
+
+async function sendFlowlockFriendRequest(value) {
+  const { data, error } = await getSupabaseClient().rpc('send_flowlock_friend_request', {
+    target_value: String(value || '').trim()
+  });
+  if (error) throw new Error(`ส่งคำขอเพื่อนไม่สำเร็จ (${error.message})`);
+  return data;
+}
+
+async function listFlowlockSharedRooms(kind, identity = null) {
+  const currentIdentity = identity || await getFlowlockIdentity();
+  const { data, error } = await getSupabaseClient()
+    .from('flowlock_shared_rooms')
+    .select('id, kind, owner_id, participant_ids, payload, created_at, updated_at')
+    .eq('kind', kind)
+    .contains('participant_ids', [currentIdentity.id])
+    .order('updated_at', { ascending: false });
+  if (error) throw new Error(`โหลดข้อมูลห้องไม่สำเร็จ (${error.message})`);
+  return data || [];
+}
+
+async function getFlowlockSharedRoom(roomId) {
+  const { data, error } = await getSupabaseClient()
+    .from('flowlock_shared_rooms')
+    .select('id, kind, owner_id, participant_ids, payload, created_at, updated_at')
+    .eq('id', roomId)
+    .maybeSingle();
+  if (error) throw new Error(`โหลดห้องไม่สำเร็จ (${error.message})`);
+  return data;
+}
+
+async function createFlowlockSharedRoom(room) {
+  const { data, error } = await getSupabaseClient()
+    .from('flowlock_shared_rooms')
+    .insert({
+      id: room.id,
+      kind: room.kind,
+      owner_id: room.ownerId,
+      participant_ids: room.participantIds,
+      payload: room.payload
+    })
+    .select('id, kind, owner_id, participant_ids, payload, created_at, updated_at')
+    .single();
+  if (error) throw new Error(`สร้างห้องไม่สำเร็จ (${error.message})`);
+  return data;
+}
+
+async function updateFlowlockSharedRoom(roomId, participantIds, payload, expectedUpdatedAt = null) {
+  let query = getSupabaseClient()
+    .from('flowlock_shared_rooms')
+    .update({
+      participant_ids: participantIds,
+      payload,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', roomId);
+  if (expectedUpdatedAt) query = query.eq('updated_at', expectedUpdatedAt);
+
+  const { data, error } = await query
+    .select('id, kind, owner_id, participant_ids, payload, created_at, updated_at')
+    .maybeSingle();
+  if (error) throw new Error(`บันทึกข้อมูลห้องไม่สำเร็จ (${error.message})`);
+  if (!data) throw new Error('บันทึกห้องไม่ได้ (ข้อมูลอาจเปลี่ยนไปหรือไม่มีสิทธิ์)');
+  return data;
+}
+
+async function loadFlowlockGameTextStatus(roomCode) {
+  const { data, error } = await getSupabaseClient().rpc('get_flowlock_game_text_status', {
+    room_code: roomCode
+  });
+  if (error) throw new Error(`โหลดสถานะข้อความไม่สำเร็จ (${error.message})`);
+  if (!data) throw new Error('ไม่พบห้อง หรือคุณไม่ได้เป็นผู้เล่นในห้องนี้');
+  return data;
+}
+
+async function saveFlowlockGameText(roomCode, text) {
+  const { data, error } = await getSupabaseClient().rpc('submit_flowlock_game_text', {
+    room_code: roomCode,
+    entry_text: text
+  });
+  if (error) throw new Error(`ส่งข้อความไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('ส่งข้อความไม่ได้ ตรวจสอบว่าห้องยังรอผู้เล่นอยู่');
+}
+
+async function declineFlowlockGameInvite(roomCode) {
+  const { data, error } = await getSupabaseClient().rpc('decline_flowlock_game_invite', {
+    room_code: roomCode
+  });
+  if (error) throw new Error(`ปฏิเสธคำเชิญไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('คำเชิญนี้หมดอายุ หรือคุณเข้าร่วมห้องไปแล้ว');
+}
+
 function cacheSupabaseProfile(profile) {
   const users = getUsers();
   users[String(profile.username).trim().toLowerCase()] = {

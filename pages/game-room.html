@@ -27,7 +27,7 @@
           <p>ส่งข้อความของคุณก่อนเริ่มเกม เมื่อจบเกมผู้ชนะจะเห็นข้อความจากผู้เล่นทุกคน</p>
           <form id="textChallengeForm" class="text-challenge-form">
             <label for="textChallengeInput">ข้อความของคุณ</label>
-            <textarea id="textChallengeInput" rows="4" placeholder="พิมพ์ข้อความที่ต้องการส่งให้ผู้ชนะ" required></textarea>
+            <textarea id="textChallengeInput" rows="4" maxlength="500" placeholder="พิมพ์ข้อความที่ต้องการส่งให้ผู้ชนะ" required></textarea>
             <button class="mini-btn" type="submit">ส่งข้อความ</button>
           </form>
           <div id="textChallengeStatus" class="text-challenge-status" aria-live="polite"></div>
@@ -37,6 +37,7 @@
           <div class="field"><label for="gameInviteFriend">เชิญเพื่อน</label><select id="gameInviteFriend"></select></div>
           <button id="sendGameInvite" class="btn small-btn" type="submit">เชิญเข้าห้อง</button>
         </form>
+        <button id="addGameBotButton" class="mini-btn" type="button" hidden>เพิ่ม AI</button>
         <button id="startGameButton" class="btn" type="button" hidden>เริ่มเกม</button>
       </section>
       <p id="gameRoomMessage" class="msg" aria-live="polite"></p>
@@ -44,6 +45,9 @@
     <section id="gameBoardWrap" class="panel game-room-panel game-board-wrap" hidden></section>
     <section id="winnerMessages" class="panel game-room-panel winner-messages" hidden aria-live="polite"></section>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../assets/js/supabase-config.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/games.js"></script>
 </body>
