@@ -29,41 +29,62 @@
       <p id="tradeRoomMessage" class="msg ok" aria-live="polite"></p>
 
       <section id="roomTradeActions" hidden>
-        <h2>เลือกบทบาท</h2>
-        <div class="trade-choices">
-          <button class="trade-choice" type="button" data-room-role="want" aria-pressed="false">
-            <strong>ผู้รับ</strong><span>ระบุรายการที่ต้องการรับ</span>
-          </button>
-          <button class="trade-choice" type="button" data-room-role="offer" aria-pressed="false">
-            <strong>ผู้ให้</strong><span>ระบุรายการที่เสนอ</span>
-          </button>
-        </div>
+        <h2>ข้อเสนอแลกเปลี่ยน</h2>
+        <p class="trade-note">เลือกบทบาทของคุณ ข้อมูลข้อเสนอจะแสดงให้อีกฝ่ายเห็นเมื่อทั้งคู่กดยืนยันเท่านั้น</p>
         <form id="roomTradeForm" class="trade-form" hidden>
-          <h2 id="roomTradeTitle">รายการ</h2>
-          <input id="roomTradeRole" type="hidden" value="">
           <div class="field">
-            <label for="roomTradeCategory">หมวดหมู่</label>
-            <select id="roomTradeCategory" required>
-              <option value="ไฟล์ดิจิทัล">ไฟล์ดิจิทัล</option>
-              <option value="งานออกแบบ">งานออกแบบ</option>
-              <option value="ไอเทมเกมที่โอนได้">ไอเทมเกมที่โอนได้</option>
-              <option value="อื่น ๆ">อื่น ๆ</option>
+            <label for="tradeSide">บทบาทของคุณ</label>
+            <select id="tradeSide" required>
+              <option value="">เลือกบทบาท</option>
+              <option value="payer">ผู้จ่าย</option>
+              <option value="recipient">ผู้รับ</option>
             </select>
           </div>
-          <div class="field">
-            <label for="roomTradeDetails">รายละเอียดรายการ</label>
-            <textarea id="roomTradeDetails" maxlength="500" required placeholder="อธิบายรายการที่ต้องการแลกเปลี่ยน"></textarea>
+          <div id="walletOfferFields" class="trade-offer-fields" hidden>
+            <div class="field">
+              <label for="walletOfferLink">Link to Mini Wallet</label>
+              <input id="walletOfferLink" type="url" maxlength="2048" placeholder="https://..." autocomplete="url">
+            </div>
+            <p class="trade-note">ตรวจสอบผู้รับและรายละเอียดก่อนเปิดลิงก์ทุกครั้ง</p>
+          </div>
+          <div id="recipientOfferFields" class="trade-offer-fields" hidden>
+            <div class="field">
+              <label for="recipientOfferType">ข้อมูลที่ต้องการส่ง</label>
+              <select id="recipientOfferType">
+                <option value="public_id">ชื่อและรหัสไอดีสาธารณะ</option>
+                <option value="redeem_code">โค้ดแลกรับที่ไม่ใช่รหัสเข้าใช้</option>
+              </select>
+            </div>
+            <div id="publicIdFields">
+              <div class="field">
+                <label for="publicIdName">ชื่อโปรไฟล์</label>
+                <input id="publicIdName" type="text" maxlength="128" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="publicIdValue">รหัสไอดีสาธารณะ</label>
+                <input id="publicIdValue" type="text" maxlength="128" autocomplete="off">
+              </div>
+            </div>
+            <div id="redeemCodeFields" hidden>
+              <div class="field">
+                <label for="redeemCodeValue">โค้ดแลกรับ</label>
+                <input id="redeemCodeValue" type="text" maxlength="256" autocomplete="off">
+              </div>
+            </div>
+            <p class="trade-note">ห้ามใส่รหัสผ่าน, OTP, รหัสกู้คืน หรือข้อมูลเข้าสู่ระบบ</p>
           </div>
           <p id="roomTradeMessage" class="msg" aria-live="polite"></p>
-          <button class="btn" type="submit">เพิ่มรายการในห้อง</button>
+          <button class="btn" type="submit">บันทึกข้อเสนอของฉัน</button>
         </form>
+        <button id="tradeConfirm" class="btn trade-ready" type="button" hidden>ยืนยันข้อเสนอ</button>
+        <p id="tradeOfferState" class="trade-offer-state" aria-live="polite"></p>
       </section>
     </section>
 
     <section class="panel trade-panel trade-room-activity">
       <h2>รายการในห้อง</h2>
       <div id="roomTradeHistory" class="trade-requests"></div>
-      <p class="trade-note">รายการจะแสดงให้สมาชิกทั้งสองคนเห็น และต้องกดยืนยันแยกกันจึงถือว่ายืนยันครบ</p>
+      <p class="trade-note">ข้อเสนอส่วนตัวจะไม่ถูกเปิดเผยจนกว่าผู้เข้าร่วมทั้งสองฝ่ายจะยืนยัน</p>
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

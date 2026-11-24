@@ -194,6 +194,43 @@ async function declineFlowlockGameInvite(roomCode) {
   if (data !== true) throw new Error('คำเชิญนี้หมดอายุ หรือคุณเข้าร่วมห้องไปแล้ว');
 }
 
+async function loadFlowlockTradeOffer(roomId) {
+  const { data, error } = await getSupabaseClient().rpc('get_flowlock_trade_offer', {
+    room_id: roomId
+  });
+  if (error) throw new Error(`โหลดข้อเสนอไม่สำเร็จ (${error.message})`);
+  if (!data) throw new Error('ไม่พบห้องนี้ หรือคุณไม่ได้เป็นสมาชิก');
+  return data;
+}
+
+async function setFlowlockTradeReady(roomId, isReady) {
+  const { data, error } = await getSupabaseClient().rpc('set_flowlock_trade_ready', {
+    room_id: roomId,
+    is_ready: isReady
+  });
+  if (error) throw new Error(`บันทึกความพร้อมไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('ยืนยันความพร้อมไม่ได้ กรุณาตรวจสอบว่าคุณเข้าห้องแล้ว');
+}
+
+async function submitFlowlockTradeOffer(roomId, side, offerType, details) {
+  const { data, error } = await getSupabaseClient().rpc('submit_flowlock_trade_offer', {
+    room_id: roomId,
+    trade_side: side,
+    offer_type: offerType,
+    offer_details: details
+  });
+  if (error) throw new Error(`บันทึกข้อเสนอไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('บันทึกข้อเสนอไม่ได้ กรุณาตรวจสอบสถานะห้อง');
+}
+
+async function confirmFlowlockTradeOffer(roomId) {
+  const { data, error } = await getSupabaseClient().rpc('confirm_flowlock_trade_offer', {
+    room_id: roomId
+  });
+  if (error) throw new Error(`ยืนยันข้อเสนอไม่สำเร็จ (${error.message})`);
+  if (data !== true) throw new Error('ยังยืนยันข้อเสนอไม่ได้ กรุณาตรวจสอบว่าทั้งสองฝ่ายส่งข้อมูลแล้ว');
+}
+
 function cacheSupabaseProfile(profile) {
   const users = getUsers();
   users[String(profile.username).trim().toLowerCase()] = {

@@ -917,14 +917,22 @@ async function setupTradeRoomPage() {
   const form = document.getElementById('roomTradeForm');
   const formMessage = document.getElementById('roomTradeMessage');
   const roomMessage = document.getElementById('tradeRoomMessage');
-  const roleInput = document.getElementById('roomTradeRole');
-  const formTitle = document.getElementById('roomTradeTitle');
+  const offerConfirmButton = document.getElementById('tradeConfirm');
+  const offerHistory = document.getElementById('roomTradeHistory');
+  const sideSelect = document.getElementById('tradeSide');
+  const walletFields = document.getElementById('walletOfferFields');
+  const recipientFields = document.getElementById('recipientOfferFields');
+  const recipientType = document.getElementById('recipientOfferType');
+  const publicIdFields = document.getElementById('publicIdFields');
+  const redeemCodeFields = document.getElementById('redeemCodeFields');
   const roomId = new URLSearchParams(window.location.search).get('room');
 
   attachLogoutButton(logoutButton, 'login.html');
   let identity;
   let room;
   let updatedAt;
+  let offerState;
+  let formDirty = false;
   try {
     identity = await getFlowlockIdentity();
     if (currentUserEl) currentUserEl.textContent = identity.name;
@@ -942,20 +950,26 @@ async function setupTradeRoomPage() {
     }
 
     const isJoined = room.status === 'joined' || room.status === 'trading';
-    const everyoneReady = Boolean(room.ready?.[room.hostId] && room.ready?.[room.guestId]);
+    const everyoneReady = Boolean(offerState?.bothReady);
     roomState.textContent = room.status === 'invited'
       ? `กำลังรอ ${room.guest} เข้าห้อง`
-      : everyoneReady ? 'ทั้งสองฝ่ายพร้อมแล้ว' : 'ยืนยันความพร้อมเมื่อทั้งสองคนอยู่ในห้อง';
+      : everyoneReady ? 'ทั้งสองฝ่ายพร้อมแล้ว เริ่มกำหนดข้อเสนอได้' : 'ทั้งสองฝ่ายต้องกดยืนยันความพร้อมก่อนเริ่มเทรด';
     members.innerHTML = [[room.host, room.hostId], [room.guest, room.guestId]].map(([name, userId]) => {
       const inRoom = room.status !== 'invited' || name === room.host;
-      const ready = Boolean(room.ready?.[userId]);
+      const ready = userId === identity.id
+        ? Boolean(offerState?.ownReady)
+        : Boolean(offerState?.partnerReady);
       return `<div class="trade-member"><strong>${escapeHtml(name)}${name === identity.name ? ' (คุณ)' : ''}</strong><span>${!inRoom ? 'รอเข้าห้อง' : ready ? 'พร้อมแล้ว' : 'อยู่ในห้อง'}</span></div>`;
     }).join('');
     readyButton.hidden = !isJoined || everyoneReady;
     readyButton.disabled = !isJoined || everyoneReady;
-    readyButton.textContent = room.ready?.[identity.id] ? 'ยกเลิกความพร้อม' : 'ตกลง พร้อมเทรด';
+    readyButton.textContent = offerState?.ownReady ? 'ยกเลิกความพร้อม' : 'ตกลง พร้อมเทรด';
     actions.hidden = !everyoneReady;
-    renderRoomTrades(document.getElementById('roomTradeHistory'), room, identity.id, persist);
+    form.hidden = !everyoneReady;
+    updateTradeOfferFields();
+    renderTradeOfferState(offerHistory, offerState, everyoneReady);
+    const ownOffer = offerState?.ownOffer;
+    offerConfirmButton.hidden = !everyoneReady || !ownOffer || ownOffer.confirmed || offerState?.bothConfirmed;
   };
 
   if (!roomId) {
@@ -964,23 +978,22 @@ async function setupTradeRoomPage() {
     return;
   }
 
-  const persist = async () => {
-    const row = await updateFlowlockSharedRoom(roomId, [room.hostId, room.guestId], room, updatedAt);
-    updatedAt = row.updated_at;
-  };
   const refresh = async (force = false) => {
     try {
       const row = await getFlowlockSharedRoom(roomId);
       if (!row) {
         room = null;
+        offerState = null;
         render();
         return;
       }
       if (force || row.updated_at !== updatedAt) {
         room = row.payload;
         updatedAt = row.updated_at;
-        render();
       }
+      offerState = await loadFlowlockTradeOffer(roomId);
+      hydrateTradeOfferForm();
+      render();
     } catch (error) {
       roomState.textContent = error.message || 'โหลดข้อมูลห้องไม่สำเร็จ';
     }
@@ -990,12 +1003,9 @@ async function setupTradeRoomPage() {
     readyButton.disabled = true;
     try {
       await refresh(true);
-      if (!room || room.status !== 'joined' || ![room.hostId, room.guestId].includes(identity.id)) return;
-      room.ready = room.ready || {};
-      room.ready[identity.id] = !room.ready[identity.id];
-      room.status = room.ready[room.hostId] && room.ready[room.guestId] ? 'trading' : 'joined';
-      await persist();
-      render();
+      if (!room || !['joined', 'trading'].includes(room.status) || ![room.hostId, room.guestId].includes(identity.id)) return;
+      await setFlowlockTradeReady(roomId, !offerState?.ownReady);
+      await refresh(true);
     } catch (error) {
       showMessage(roomMessage, error.message || 'บันทึกสถานะไม่สำเร็จ');
     } finally {
@@ -1003,49 +1013,116 @@ async function setupTradeRoomPage() {
     }
   });
 
-  document.querySelectorAll('[data-room-role]').forEach((button) => {
-    button.addEventListener('click', () => {
-      roleInput.value = button.dataset.roomRole;
-      formTitle.textContent = button.dataset.roomRole === 'offer' ? 'รายการที่เสนอให้' : 'รายการที่ต้องการรับ';
-      form.hidden = false;
-      formMessage.textContent = '';
-      document.getElementById('roomTradeCategory').focus();
-    });
+  const updateTradeOfferFields = () => {
+    const isPayer = sideSelect.value === 'payer';
+    const isRecipient = sideSelect.value === 'recipient';
+    const usesPublicId = recipientType.value === 'public_id';
+    walletFields.hidden = !isPayer;
+    recipientFields.hidden = !isRecipient;
+    publicIdFields.hidden = !isRecipient || !usesPublicId;
+    redeemCodeFields.hidden = !isRecipient || usesPublicId;
+    document.getElementById('walletOfferLink').required = isPayer;
+    document.getElementById('publicIdName').required = isRecipient && usesPublicId;
+    document.getElementById('publicIdValue').required = isRecipient && usesPublicId;
+    document.getElementById('redeemCodeValue').required = isRecipient && !usesPublicId;
+  };
+
+  const hydrateTradeOfferForm = () => {
+    const ownOffer = offerState?.ownOffer;
+    if (formDirty || !ownOffer) return;
+    sideSelect.value = ownOffer.side;
+    recipientType.value = ownOffer.type === 'redeem_code' ? 'redeem_code' : 'public_id';
+    updateTradeOfferFields();
+    if (ownOffer.type === 'wallet_link') {
+      document.getElementById('walletOfferLink').value = ownOffer.details.url || '';
+    } else if (ownOffer.type === 'public_id') {
+      document.getElementById('publicIdName').value = ownOffer.details.name || '';
+      document.getElementById('publicIdValue').value = ownOffer.details.value || '';
+    } else if (ownOffer.type === 'redeem_code') {
+      document.getElementById('redeemCodeValue').value = ownOffer.details.value || '';
+    }
+  };
+
+  sideSelect.addEventListener('change', () => {
+    formDirty = true;
+    updateTradeOfferFields();
+  });
+  recipientType.addEventListener('change', () => {
+    formDirty = true;
+    updateTradeOfferFields();
+  });
+  form.addEventListener('input', () => {
+    formDirty = true;
   });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
       await refresh(true);
-      const details = document.getElementById('roomTradeDetails').value.trim();
-      if (!room || room.status !== 'trading' || !details) {
+      if (!room || !offerState?.bothReady) {
         showMessage(formMessage, 'ทั้งสองฝ่ายต้องอยู่ในห้องและยืนยันความพร้อมก่อน');
         return;
       }
-      if (/https?:\/\/|www\.|password|passwd|passcode|otp|cookie|token|access.?key|login|รหัสผ่าน|พาสเวิร์ด|รหัสผู้ใช้|ชื่อผู้ใช้|อั่งเปา|ทรูมันนี่|ลิงก์|link|บัญชี/i.test(details)) {
-        showMessage(formMessage, 'รายละเอียดนี้มีลิงก์หรือข้อมูลอ่อนไหว กรุณาระบุเฉพาะรายการทั่วไป');
+      const side = sideSelect.value;
+      if (!side) {
+        showMessage(formMessage, 'กรุณาเลือกบทบาทของคุณ');
         return;
       }
-      room.trades = Array.isArray(room.trades) ? room.trades : [];
-      room.trades.push({
-        id: `ITEM-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        roomId,
-        from: identity.name,
-        fromId: identity.id,
-        to: room.hostId === identity.id ? room.guest : room.host,
-        role: roleInput.value,
-        category: document.getElementById('roomTradeCategory').value,
-        details,
-        confirmedBy: [],
-        createdAt: Date.now()
-      });
-      await persist();
-      form.reset();
-      form.hidden = true;
-      roomMessage.textContent = 'เพิ่มรายการในห้องแล้ว';
-      render();
+      let offerType;
+      let details;
+      if (side === 'payer') {
+        const walletLink = document.getElementById('walletOfferLink').value.trim();
+        let parsedLink;
+        try {
+          parsedLink = new URL(walletLink);
+        } catch {
+          throw new Error('กรุณาใส่ลิงก์ Mini Wallet ที่ถูกต้อง');
+        }
+        if (parsedLink.protocol !== 'https:') {
+          throw new Error('ลิงก์ Mini Wallet ต้องขึ้นต้นด้วย https://');
+        }
+        offerType = 'wallet_link';
+        details = { url: walletLink };
+      } else if (recipientType.value === 'public_id') {
+        offerType = 'public_id';
+        details = {
+          name: document.getElementById('publicIdName').value.trim(),
+          value: document.getElementById('publicIdValue').value.trim()
+        };
+        if (!details.name || !details.value) {
+          showMessage(formMessage, 'กรุณากรอกชื่อโปรไฟล์และรหัสไอดีสาธารณะ');
+          return;
+        }
+      } else {
+        offerType = 'redeem_code';
+        details = { value: document.getElementById('redeemCodeValue').value.trim() };
+        if (!details.value) {
+          showMessage(formMessage, 'กรุณากรอกโค้ดแลกรับ');
+          return;
+        }
+      }
+
+      await submitFlowlockTradeOffer(roomId, side, offerType, details);
+      formDirty = false;
+      await refresh(true);
+      showMessage(formMessage, 'บันทึกข้อเสนอแล้ว ข้อมูลจะเปิดเมื่อทั้งคู่ยืนยัน', true);
     } catch (error) {
       showMessage(formMessage, error.message || 'บันทึกรายการไม่สำเร็จ');
+    }
+  });
+
+  offerConfirmButton.addEventListener('click', async () => {
+    offerConfirmButton.disabled = true;
+    try {
+      await confirmFlowlockTradeOffer(roomId);
+      await refresh(true);
+      showMessage(roomMessage, offerState?.bothConfirmed
+        ? 'ทั้งสองฝ่ายยืนยันแล้ว ข้อเสนอถูกเปิดเผย'
+        : 'ยืนยันข้อเสนอแล้ว กำลังรออีกฝ่ายยืนยัน', true);
+    } catch (error) {
+      showMessage(roomMessage, error.message || 'ยืนยันข้อเสนอไม่สำเร็จ');
+    } finally {
+      offerConfirmButton.disabled = false;
     }
   });
 
@@ -1053,50 +1130,46 @@ async function setupTradeRoomPage() {
   window.setInterval(() => refresh(), 2500);
 }
 
-function renderRoomTrades(container, room, currentUserId, persist) {
+function renderTradeOfferState(container, state, everyoneReady) {
   if (!container) return;
-
-  const trades = (room.trades || [])
-    .sort((first, second) => first.createdAt - second.createdAt);
-  if (!trades.length) {
-    container.innerHTML = '<p class="empty-friend">ยังไม่มีรายการในห้อง</p>';
+  if (!everyoneReady) {
+    container.innerHTML = '<p class="empty-friend">ข้อเสนอจะเริ่มได้เมื่อทั้งสองฝ่ายพร้อม</p>';
+    return;
+  }
+  if (!state) {
+    container.innerHTML = '<p class="empty-friend">กำลังโหลดข้อเสนอ</p>';
     return;
   }
 
-  container.innerHTML = trades.map((trade) => {
-    const confirmed = Array.isArray(trade.confirmedBy) ? trade.confirmedBy : [];
-    const done = confirmed.includes(room.hostId) && confirmed.includes(room.guestId);
-    const isParticipant = [room.hostId, room.guestId].includes(currentUserId);
-    return `
-      <article class="trade-request">
-        <div><strong>${trade.role === 'offer' ? 'ผู้ให้' : 'ผู้รับ'} · ${escapeHtml(trade.category)}</strong>
-          <span>${escapeHtml(trade.from)} · ${done ? 'ยืนยันครบสองฝ่าย' : `ยืนยันแล้ว ${confirmed.length}/2`}</span>
-          <p>${escapeHtml(trade.details)}</p>
-        </div>
-        ${isParticipant && !confirmed.includes(currentUserId)
-          ? `<button class="mini-btn confirm-room-trade" type="button" data-trade-id="${escapeHtml(trade.id)}">ยืนยันรายการ</button>`
-          : ''}
-      </article>
-    `;
-  }).join('');
+  const ownOffer = state.ownOffer;
+  const partnerOffer = state.partnerOffer;
+  const renderOffer = (offer, heading) => {
+    if (!offer) return '';
+    let details = '';
+    if (offer.type === 'wallet_link') {
+      const url = String(offer.details.url || '');
+      details = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">เปิด Link to Mini Wallet</a>`;
+    } else if (offer.type === 'public_id') {
+      details = `<p>ชื่อโปรไฟล์: ${escapeHtml(offer.details.name || '')}<br>รหัสไอดีสาธารณะ: ${escapeHtml(offer.details.value || '')}</p>`;
+    } else if (offer.type === 'redeem_code') {
+      details = `<p>โค้ดแลกรับ: ${escapeHtml(offer.details.value || '')}</p>`;
+    }
+    return `<article class="trade-request"><div><strong>${heading} · ${offer.side === 'payer' ? 'ผู้จ่าย' : 'ผู้รับ'}</strong>${details}</div></article>`;
+  };
+  const partnerStatus = state.bothConfirmed
+    ? 'ยืนยันครบทั้งสองฝ่าย'
+    : state.partnerConfirmed ? 'อีกฝ่ายยืนยันแล้ว' : state.partnerSubmitted ? 'รออีกฝ่ายยืนยัน' : 'รออีกฝ่ายส่งข้อเสนอ';
+  const ownStatus = ownOffer
+    ? ownOffer.confirmed ? 'คุณยืนยันแล้ว' : 'ข้อเสนอของคุณยังไม่ยืนยัน'
+    : 'คุณยังไม่ได้ส่งข้อเสนอ';
 
-  container.querySelectorAll('.confirm-room-trade').forEach((button) => {
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      const trade = (room.trades || []).find((item) => item.id === button.dataset.tradeId);
-      if (!trade) return;
-      trade.confirmedBy = Array.isArray(trade.confirmedBy) ? trade.confirmedBy : [];
-      if (![room.hostId, room.guestId].includes(currentUserId) || trade.confirmedBy.includes(currentUserId)) return;
-      trade.confirmedBy.push(currentUserId);
-      try {
-        await persist();
-        renderRoomTrades(container, room, currentUserId, persist);
-      } catch (error) {
-        showMessage(container, error.message || 'ยืนยันรายการไม่สำเร็จ');
-        button.disabled = false;
-      }
-    });
-  });
+  container.innerHTML = `
+    ${renderOffer(ownOffer, 'ข้อเสนอของคุณ')}
+    ${state.bothConfirmed
+      ? renderOffer(partnerOffer, `ข้อเสนอของ ${escapeHtml(state.partnerName || 'อีกฝ่าย')}`)
+      : `<article class="trade-request"><div><strong>ข้อเสนอของอีกฝ่าย</strong><span>${partnerStatus} · ข้อมูลยังถูกซ่อนไว้</span></div></article>`}
+    <p class="trade-offer-state">${ownStatus} · ${partnerStatus}</p>
+  `;
 }
 
 async function setupTradeHistoryPage() {

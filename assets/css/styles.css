@@ -683,7 +683,7 @@ button, input, a { font: inherit; color: inherit; }
   max-width: 620px;
 }
 
-.trade-form select, .trade-form textarea {
+.trade-form input, .trade-form select, .trade-form textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -696,6 +696,22 @@ button, input, a { font: inherit; color: inherit; }
 .trade-form textarea {
   min-height: 120px;
   resize: vertical;
+}
+
+.trade-offer-fields {
+  margin-top: 18px;
+}
+
+.trade-offer-state {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.trade-request a {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--soft);
+  overflow-wrap: anywhere;
 }
 
 .trade-choices {
