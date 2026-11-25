@@ -766,6 +766,10 @@ async function setupTradePage() {
   const createRoomButton = document.getElementById('createTradeRoom');
   const message = document.getElementById('tradeRoomMessage');
   const roomsList = document.getElementById('tradeRooms');
+  const inviteDialog = document.getElementById('tradeInviteDialog');
+  const inviteStatus = document.getElementById('tradeInviteStatus');
+  const acceptInviteButton = document.getElementById('acceptTradeInvite');
+  const rejectInviteButton = document.getElementById('rejectTradeInvite');
 
   attachLogoutButton(logoutButton, 'login.html');
 
@@ -796,7 +800,7 @@ async function setupTradePage() {
       const existing = existingRooms.find((row) =>
         [row.payload.hostId, row.payload.guestId].includes(identity.id)
         && [row.payload.hostId, row.payload.guestId].includes(friend.id)
-        && row.payload.status !== 'closed'
+        && !['closed', 'rejected'].includes(row.payload.status)
       );
       if (existing) {
         window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(existing.id)}`;
@@ -842,67 +846,119 @@ async function setupTradePage() {
       showMessage(message, error.message || 'โหลดรายชื่อเพื่อนไม่สำเร็จ');
     }
   };
-  const refresh = () => renderTradeRooms(roomsList, identity);
+  const refresh = () => renderTradeRooms(roomsList, identity, inviteDialog, respondToInvite);
+  const respondToInvite = async (roomId, accept) => {
+    const row = await getFlowlockSharedRoom(roomId);
+    const room = row?.payload;
+    if (!row || !room || room.guestId !== identity.id || room.status !== 'invited') {
+      throw new Error('คำเชิญนี้ไม่พร้อมตอบรับแล้ว');
+    }
+
+    room.status = accept ? 'joined' : 'rejected';
+    if (accept) room.joinedAt = Date.now();
+    else room.rejectedAt = Date.now();
+    await updateFlowlockSharedRoom(roomId, row.participant_ids, room, row.updated_at);
+    if (inviteDialog.open) inviteDialog.close();
+    if (accept) {
+      window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(roomId)}`;
+      return;
+    }
+    await refresh();
+  };
+
+  [acceptInviteButton, rejectInviteButton].forEach((button) => {
+    button.addEventListener('click', async () => {
+      const accept = button === acceptInviteButton;
+      const roomId = inviteDialog.dataset.roomId;
+      button.disabled = true;
+      acceptInviteButton.disabled = true;
+      rejectInviteButton.disabled = true;
+      inviteStatus.textContent = '';
+      try {
+        await respondToInvite(roomId, accept);
+      } catch (error) {
+        showMessage(inviteStatus, error.message || 'จัดการคำเชิญไม่สำเร็จ');
+      } finally {
+        acceptInviteButton.disabled = false;
+        rejectInviteButton.disabled = false;
+      }
+    });
+  });
+
   refresh();
   window.setInterval(refreshFriends, 5000);
   window.setInterval(refresh, 3000);
 }
 
-async function renderTradeRooms(container, identity) {
+async function renderTradeRooms(container, identity, inviteDialog = null, respondToInvite = null) {
   if (!container) return;
 
-  let rooms;
+  let rows;
   try {
-    const rows = await listFlowlockSharedRooms('trade', identity);
-    rooms = rows.map((row) => row.payload)
-      .filter((room) => room.status !== 'closed')
-      .sort((first, second) => second.createdAt - first.createdAt);
+    rows = await listFlowlockSharedRooms('trade', identity);
   } catch (error) {
     container.innerHTML = `<p class="msg">${escapeHtml(error.message || 'โหลดห้องเทรดไม่สำเร็จ')}</p>`;
     return;
   }
 
+  const rooms = rows.map((row) => row.payload)
+    .filter((room) => room.status !== 'closed')
+    .sort((first, second) => second.createdAt - first.createdAt);
+
   if (!rooms.length) {
     container.innerHTML = '<p class="empty-friend">ยังไม่มีห้องเทรด</p>';
-    return;
+  } else {
+    container.innerHTML = rooms.map((room) => {
+      const incoming = room.guestId === identity.id && room.status === 'invited';
+      const friend = room.hostId === identity.id ? room.guest : room.host;
+      const state = room.status === 'joined' || room.status === 'trading'
+        ? 'เพื่อนเข้าห้องแล้ว'
+        : room.status === 'rejected' ? 'อีกฝ่ายปฏิเสธคำเชิญ'
+          : incoming ? 'มีคำเชิญใหม่' : 'รอเพื่อนเข้าห้อง';
+      return `
+        <article class="trade-request">
+          <div><strong>ห้องกับ ${escapeHtml(friend)}</strong><span>${state}</span></div>
+          ${incoming
+            ? `<div class="trade-invite-actions">
+                <button class="mini-btn reject-trade-invite" type="button" data-room-id="${escapeHtml(room.id)}">ปฏิเสธ</button>
+                <button class="mini-btn accept-trade-invite" type="button" data-room-id="${escapeHtml(room.id)}">เข้าร่วม</button>
+              </div>`
+            : room.status === 'rejected' ? '' : `<button class="mini-btn open-trade-room" type="button" data-room-id="${escapeHtml(room.id)}">เปิดห้อง</button>`}
+        </article>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.open-trade-room').forEach((button) => {
+      button.addEventListener('click', () => {
+        window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(button.dataset.roomId)}`;
+      });
+    });
+
+    container.querySelectorAll('.accept-trade-invite, .reject-trade-invite').forEach((button) => {
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const accept = button.classList.contains('accept-trade-invite');
+          if (!respondToInvite) throw new Error('ไม่สามารถจัดการคำเชิญนี้ได้');
+          await respondToInvite(button.dataset.roomId, accept);
+        } catch (error) {
+          showMessage(container, error.message || 'จัดการคำเชิญไม่สำเร็จ');
+          button.disabled = false;
+        }
+      });
+    });
   }
 
-  container.innerHTML = rooms.map((room) => {
-    const incoming = room.guestId === identity.id && room.status === 'invited';
-    const friend = room.hostId === identity.id ? room.guest : room.host;
-    const state = room.status === 'joined' || room.status === 'trading'
-      ? 'เพื่อนเข้าห้องแล้ว'
-      : incoming ? 'มีคำเชิญใหม่' : 'รอเพื่อนเข้าห้อง';
-    return `
-      <article class="trade-request">
-        <div><strong>ห้องกับ ${escapeHtml(friend)}</strong><span>${state}</span></div>
-        <button class="mini-btn open-trade-room" type="button" data-room-id="${escapeHtml(room.id)}">${incoming ? 'เข้าห้อง' : 'เปิดห้อง'}</button>
-      </article>
-    `;
-  }).join('');
-
-  container.querySelectorAll('.open-trade-room').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const roomId = button.dataset.roomId;
-      button.disabled = true;
-      try {
-        const row = await getFlowlockSharedRoom(roomId);
-        const room = row?.payload;
-        if (!row || !room || !row.participant_ids.includes(identity.id)) {
-          throw new Error('ไม่พบห้องนี้ หรือคุณไม่ได้รับเชิญ');
-        }
-        if (room.guestId === identity.id && room.status === 'invited') {
-          room.status = 'joined';
-          room.joinedAt = Date.now();
-          await updateFlowlockSharedRoom(roomId, row.participant_ids, room, row.updated_at);
-        }
-        window.location.href = `${resolvePagePath('trade-room.html')}?room=${encodeURIComponent(roomId)}`;
-      } catch (error) {
-        showMessage(container, error.message || 'เปิดห้องเทรดไม่สำเร็จ');
-        button.disabled = false;
-      }
-    });
-  });
+  if (inviteDialog) {
+    const invitation = rooms.find((room) => room.guestId === identity.id && room.status === 'invited');
+    if (invitation) {
+      inviteDialog.dataset.roomId = invitation.id;
+      document.getElementById('tradeInviteMessage').textContent = `${invitation.host} เชิญคุณเข้าร่วมห้องเทรด`;
+      if (!inviteDialog.open) inviteDialog.showModal();
+    } else if (inviteDialog.open) {
+      inviteDialog.close();
+    }
+  }
 }
 
 async function setupTradeRoomPage() {
@@ -953,7 +1009,8 @@ async function setupTradeRoomPage() {
     const everyoneReady = Boolean(offerState?.bothReady);
     roomState.textContent = room.status === 'invited'
       ? `กำลังรอ ${room.guest} เข้าห้อง`
-      : everyoneReady ? 'ทั้งสองฝ่ายพร้อมแล้ว เริ่มกำหนดข้อเสนอได้' : 'ทั้งสองฝ่ายต้องกดยืนยันความพร้อมก่อนเริ่มเทรด';
+      : room.status === 'rejected' ? 'คำเชิญนี้ถูกปฏิเสธแล้ว'
+        : everyoneReady ? 'ทั้งสองฝ่ายพร้อมแล้ว เริ่มกำหนดข้อเสนอได้' : 'ทั้งสองฝ่ายต้องกดยืนยันความพร้อมก่อนเริ่มเทรด';
     members.innerHTML = [[room.host, room.hostId], [room.guest, room.guestId]].map(([name, userId]) => {
       const inRoom = room.status !== 'invited' || name === room.host;
       const ready = userId === identity.id

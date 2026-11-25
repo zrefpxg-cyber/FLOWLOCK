@@ -47,6 +47,15 @@
       <br>คำเชิญและรายการในห้องจะซิงก์ผ่านบัญชี FLOWLOCK ของผู้เข้าร่วม
     </section>
   </main>
+  <dialog id="tradeInviteDialog" class="game-dialog" aria-labelledby="tradeInviteTitle">
+    <h2 id="tradeInviteTitle">ได้รับคำเชิญเทรด</h2>
+    <p id="tradeInviteMessage"></p>
+    <div class="trade-invite-actions">
+      <button id="rejectTradeInvite" class="mini-btn" type="button">ปฏิเสธ</button>
+      <button id="acceptTradeInvite" class="btn" type="button">เข้าร่วม</button>
+    </div>
+    <p id="tradeInviteStatus" class="msg" aria-live="polite"></p>
+  </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../assets/js/supabase-config.js"></script>
   <script src="../assets/js/supabase-client.js"></script>

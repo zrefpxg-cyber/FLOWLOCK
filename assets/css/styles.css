@@ -846,6 +846,16 @@ button, input, a { font: inherit; color: inherit; }
   margin: 24px 0;
 }
 
+.trade-invite-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trade-invite-actions .btn {
+  width: auto;
+}
+
 .trade-invite-row .field {
   flex: 1;
   margin: 0;

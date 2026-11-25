@@ -208,7 +208,12 @@ async function setFlowlockTradeReady(roomId, isReady) {
     room_id: roomId,
     is_ready: isReady
   });
-  if (error) throw new Error(`บันทึกความพร้อมไม่สำเร็จ (${error.message})`);
+  if (error) {
+    if (error.code === 'PGRST202' || /Could not find the function public\.set_flowlock_trade_ready/i.test(error.message)) {
+      throw new Error('ยังไม่ได้ติดตั้งฟังก์ชันเทรดใน Supabase กรุณารัน supabase/setup.sql ในโปรเจกต์ที่เว็บไซต์เชื่อมต่ออยู่');
+    }
+    throw new Error(`บันทึกความพร้อมไม่สำเร็จ (${error.message})`);
+  }
   if (data !== true) throw new Error('ยืนยันความพร้อมไม่ได้ กรุณาตรวจสอบว่าคุณเข้าห้องแล้ว');
 }
 
