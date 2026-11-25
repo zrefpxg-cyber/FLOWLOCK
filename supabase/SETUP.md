@@ -16,7 +16,7 @@
 
 ข้อมูลเพื่อนและห้องเดโมที่เคยเก็บใน `localStorage` จะไม่ถูกย้ายอัตโนมัติ ให้ส่งคำขอเพื่อนใหม่หลังอัปเดต schema
 
-หากหน้าเทรดแจ้งว่าไม่พบ `public.set_flowlock_trade_ready` ใน schema cache ให้รัน `supabase/setup.sql` อีกครั้งใน SQL Editor ของโปรเจกต์ที่เว็บไซต์เชื่อมต่ออยู่ แล้วตรวจว่าฟังก์ชันถูกติดตั้งด้วยคำสั่งนี้:
+หากหน้าเทรดแจ้งว่าไม่พบ RPC หรือไม่พบตารางข้อเสนอ/ความพร้อม ให้รัน `supabase/migrations/20261125_trade_flow.sql` ใน SQL Editor ของโปรเจกต์ที่เว็บไซต์เชื่อมต่ออยู่ ไฟล์นี้ติดตั้งตารางและ RPC สำหรับเทรด พร้อมสั่ง reload schema cache หาก SQL แจ้งว่าไม่มี `flowlock_shared_rooms` หรือ `flowlock_profiles` ให้รัน `supabase/setup.sql` ทั้งไฟล์ก่อน จากนั้นตรวจว่าฟังก์ชันถูกติดตั้งด้วยคำสั่งนี้:
 
 ```sql
 select pg_get_function_identity_arguments(p.oid)
